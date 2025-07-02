@@ -1,7 +1,12 @@
 <script lang="ts">
 	import '../app.css';
-
+	import { ModeWatcher } from 'mode-watcher';
 	let { children } = $props();
+
+	import Navbar from '$lib/components/custom/Navbar.svelte';
 </script>
 
-{@render children()}
+<ModeWatcher />
+
+<Navbar />
+{@render children?.()}
