@@ -16,8 +16,8 @@
 <div class="mx-auto flex max-w-3xl items-center justify-between">
 	<a href="/">
 		<div class="text-red flex items-center gap-2">
-			<img src="/laputu-logo.png" alt="Laputu" class="h-12 w-12" />
-			<div class="font-title text-laputu text-3xl italic">Laputu</div>
+			<img src="/lapita-logo.png" alt="lapita" class="h-12 w-12" />
+			<div class="font-title text-lapita text-3xl italic">lapita</div>
 		</div>
 	</a>
 	<NavigationMenu.Root>

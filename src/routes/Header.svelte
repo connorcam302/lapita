@@ -19,8 +19,8 @@
 	style="height: {height}; --left-color: {leftColor}; --right-color: {rightColor};"
 >
 	<div class="header-content flex items-center gap-4 px-8 text-center">
-		<img src="/laputu-logo.png" alt="Laputu" class="h-64 w-64" />
-		<div class="font-title text-laputu text-9xl italic">Laputu</div>
+		<img src="/lapita-logo.png" alt="lapita" class="h-64 w-64" />
+		<div class="font-title text-lapita text-9xl italic">lapita</div>
 	</div>
 </header>
 
@@ -29,8 +29,8 @@
 	style="height: 8rem; --left-color: {leftColor}; --right-color: {rightColor};"
 >
 	<div class="header-content flex items-center gap-4 px-8 text-center">
-		<img src="/laputu-logo.png" alt="Laputu" class="h-24 w-24" />
-		<div class="font-title text-laputu text-6xl italic">Laputu</div>
+		<img src="/lapita-logo.png" alt="lapita" class="h-24 w-24" />
+		<div class="font-title text-lapita text-6xl italic">lapita</div>
 	</div>
 </header>
 
@@ -45,10 +45,10 @@
 		position: absolute;
 		top: 0;
 		left: 0;
-		width: 50%;
+		width: 55%;
 		height: 100%;
 		background-color: var(--left-color);
-		clip-path: polygon(0 0, 85% 0, 70% 100%, 0 100%);
+		clip-path: polygon(0 0, 78.5% 0, 70% 100%, 0 100%);
 		z-index: 1;
 	}
 
@@ -81,7 +81,7 @@
 		width: 40%;
 		height: 100%;
 		background-color: var(--left-color);
-		clip-path: polygon(0 0, 85% 0, 70% 100%, 0 100%);
+		clip-path: polygon(0 0, 78.5% 0, 70% 100%, 0 100%);
 		z-index: 1;
 	}
 
