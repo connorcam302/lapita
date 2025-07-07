@@ -1,5 +1,6 @@
 import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
+import { asc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -33,7 +34,7 @@ export const load: PageServerLoad = async () => {
 		]
 	};
 
-	const playerList = await db.select().from(users);
+	const playerList = await db.select().from(users).orderBy(asc(users.name));
 
 	return { leaderboard, playerList };
 };

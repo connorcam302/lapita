@@ -1,37 +1,30 @@
 import { db } from '$lib/server/db';
-import { granPrix, races, results, tracks, users } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { characters, granPrix, races, results, tracks, users } from '$lib/server/db/schema';
+import { asc, eq, inArray } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
+import { getRaceResultsByGpId } from '$lib/server/serverUtils';
 
 export const load: PageServerLoad = async ({ params }) => {
-	const raceList = await db
-		.select({
-			id: races.id,
-			order: races.order,
-			name: tracks.name
-		})
-		.from(races)
-		.innerJoin(tracks, eq(races.trackStartId, tracks.id))
-		.where(eq(races.granPrixId, Number(params.id)));
-
 	const [granPrixDetails] = await db
 		.select()
 		.from(granPrix)
 		.where(eq(granPrix.id, Number(params.id)))
 		.limit(1);
 
-	const raceResults = await db
-		.select()
-		.from(results)
-		.innerJoin(races, eq(results.raceId, races.id))
-		.where(eq(races.granPrixId, Number(params.id)));
+	const initialRaceResults = await getRaceResultsByGpId(params.id);
 
-	const userList = await db.select().from(users);
+	const userList = await db
+		.select()
+		.from(users)
+		.where(inArray(users.id, await granPrixDetails.participants))
+		.orderBy(asc(users.name));
+
+	const characterList = await db.select().from(characters).orderBy(asc(characters.name));
 
 	return {
 		userList,
-		raceList,
 		granPrixDetails,
-		raceResults
+		initialRaceResults,
+		characterList
 	};
 };
