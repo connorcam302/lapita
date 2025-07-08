@@ -12,7 +12,7 @@ export const tracks = pgTable('tracks', {
 	name: varchar('name', { length: 255 })
 });
 
-export const granPrix = pgTable('gran_prix', {
+export const grandPrix = pgTable('grand_prix', {
 	startTime: timestamp('finish_time').default(sql`now()`),
 	id: serial('id').primaryKey(),
 	order: integer('order').notNull(),
@@ -23,7 +23,7 @@ export const races = pgTable('races', {
 	startTime: timestamp('finish_time').default(sql`now()`),
 	id: serial('id').primaryKey(),
 	order: integer('order').notNull(),
-	granPrixId: integer('gran_prix_id').references(() => granPrix.id),
+	grandPrixId: integer('grand_prix_id').references(() => grandPrix.id),
 	trackStartId: text('track_start_id').references(() => tracks.id),
 	trackEndId: text('track_end_id').references(() => tracks.id),
 	transition: boolean('transition').notNull().default(false)

@@ -8,7 +8,7 @@ export async function GET() {
 					.channel('server-changes')
 					.on(
 						'postgres_changes',
-						{ event: '*', schema: 'public', table: 'gran_prix' },
+						{ event: '*', schema: 'public', table: 'grand_prix' },
 						(payload) => {
 							controller.enqueue(`data: ${JSON.stringify(payload)}\n\n`);
 						}

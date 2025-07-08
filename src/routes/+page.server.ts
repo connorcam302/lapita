@@ -2,6 +2,7 @@ import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { asc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
+import { getAllGpStandings } from '$lib/server/serverUtils';
 
 export const load: PageServerLoad = async () => {
 	const leaderboard = {
@@ -34,7 +35,9 @@ export const load: PageServerLoad = async () => {
 		]
 	};
 
+	const allGpResults = await getAllGpStandings();
+
 	const playerList = await db.select().from(users).orderBy(asc(users.name));
 
-	return { leaderboard, playerList };
+	return { leaderboard, playerList, allGpResults };
 };

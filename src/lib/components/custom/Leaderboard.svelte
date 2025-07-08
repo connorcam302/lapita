@@ -24,7 +24,7 @@
 
 <Card.Root class="max-w-96">
 	<Card.Header>
-		<Card.Title>Gran Prix {leaderboard.gpId}</Card.Title>
+		<Card.Title>Grand Prix {leaderboard.gpId}</Card.Title>
 		<Card.Description>Most recent GP Standings</Card.Description>
 	</Card.Header>
 	<Card.Content>

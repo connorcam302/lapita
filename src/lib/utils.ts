@@ -60,3 +60,28 @@ export const placementToPoints: Record<number, number> = {
 	23: 2,
 	24: 1
 };
+
+const clamp = (val) => Math.max(0, Math.min(255, val));
+const toHex = (val) => clamp(val).toString(16).padStart(2, '0');
+
+export const getPositionColour = (position: number): string => {
+	if (!position || position < 1 || position > 24) return '#d1d5db'; // gray-300
+
+	if (position === 1) return '#00a63e'; // Pure green
+
+	if (position <= 4) {
+		// Green (#00a63e) to yellow-orange (#ffcc00)
+		const ratio = (position - 1) / 3; // 0 to 1
+		const red = Math.round(0 + (255 - 0) * ratio);
+		const green = Math.round(166 + (204 - 166) * ratio); // 166 → 204
+		const blue = Math.round(62 - 62 * ratio); // 62 → 0
+		return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+	}
+
+	// Yellow-orange (#ffcc00) to red (#ff0000)
+	const ratio = (position - 4) / 20; // 0 to 1
+	const red = 255;
+	const green = Math.round(204 - 204 * ratio); // 204 → 0
+	const blue = 0;
+	return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+};

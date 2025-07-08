@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { granPrix, races, results } from '$lib/server/db/schema';
+import { grandPrix, races, results } from '$lib/server/db/schema';
 import type { RequestHandler } from './$types';
 import { validTracks } from '$lib/data/allTracks';
 import { desc } from 'drizzle-orm';
@@ -18,23 +18,23 @@ export const POST: RequestHandler = async ({ request }) => {
 	const trackList = tracks.sort(() => Math.random() - 0.5).slice(0, 16);
 
 	try {
-		const latestGP = await db.select().from(granPrix).orderBy(desc(granPrix.order)).limit(1);
-		const newGranPrix = await db
-			.insert(granPrix)
+		const latestGP = await db.select().from(grandPrix).orderBy(desc(grandPrix.order)).limit(1);
+		const newgrandPrix = await db
+			.insert(grandPrix)
 			.values({ order: (latestGP[0]?.order ?? -1) + 1, participants })
 			.returning();
 
-		if (!newGranPrix?.[0]) {
-			return json({ error: 'Failed to create Gran Prix' }, { status: 500 });
+		if (!newgrandPrix?.[0]) {
+			return json({ error: 'Failed to create grand Prix' }, { status: 500 });
 		}
 
-		const granPrixId = newGranPrix[0].id;
+		const grandPrixId = newgrandPrix[0].id;
 		const raceList = await db
 			.insert(races)
 			.values(
 				trackList.map((track, i) => ({
 					order: i,
-					granPrixId,
+					grandPrixId,
 					trackStartId: track.id,
 					trackEndId: track.id
 				}))
@@ -50,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			)
 		);
 
-		return json(newGranPrix[0]);
+		return json(newgrandPrix[0]);
 	} catch (e) {
 		console.error(e);
 		return json({ error: 'An unexpected error occurred.' }, { status: 500 });

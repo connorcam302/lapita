@@ -12,7 +12,7 @@
 				{
 					event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
 					schema: 'public',
-					table: 'gran_prix' // Replace with your actual PostgreSQL table name
+					table: 'grand_prix' // Replace with your actual PostgreSQL table name
 				},
 				(payload) => {
 					console.log('Real-time update:', payload);

@@ -11,8 +11,6 @@
 
 	const { playerList } = $props();
 
-	console.log(playerList);
-
 	let userList = $state([]);
 
 	const adduser = (id: number) => {
@@ -36,7 +34,7 @@
 	};
 
 	const createGP = async () => {
-		const res = await fetch('/api/granprix/new', {
+		const res = await fetch('/api/grandprix/new', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -46,7 +44,7 @@
 
 		if (res.ok) {
 			const { id } = await res.json();
-			goto(`/granprix/${id}`);
+			goto(`/grandprix/${id}`);
 		}
 	};
 </script>
@@ -56,13 +54,13 @@
 		<Button variant="secondary" size="xl" class="hover:cursor-pointer">
 			<div class="flex items-center gap-2 text-4xl">
 				<FlagIcon class="size-9" />
-				Start New Gran Prix
+				Start New Grand Prix
 			</div>
 		</Button>
 	</Sheet.Trigger>
 	<Sheet.Content>
 		<Sheet.Header>
-			<Sheet.Title>Start New Gran Prix</Sheet.Title>
+			<Sheet.Title>Start New grand Prix</Sheet.Title>
 			<Sheet.Description>
 				16 races will be selected from race pool. The pool consists of all races other than <b
 					>Rainbow Road</b
@@ -106,7 +104,7 @@
 		</div>
 		<Sheet.Footer>
 			<Button variant="secondary" type="submit" class="cursor-pointer" onclick={() => createGP()}
-				>Start Gran Prix</Button
+				>Start grand Prix</Button
 			>
 		</Sheet.Footer>
 	</Sheet.Content>
