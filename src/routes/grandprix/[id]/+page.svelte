@@ -74,6 +74,10 @@
 				description: `${selectedUser.name} finished ${addNumberSuffix(finishPosition)} in ${selectedRace.name}`
 			});
 			finishPosition = '';
+			subscription.send({
+				type: 'broadcast',
+				event: 'new-result'
+			});
 			const currentRaceIndex = raceResults.findIndex((race) => race.id === Number(selectedRaceId));
 			selectedRaceId = raceResults[currentRaceIndex + 1].id;
 		} else {
@@ -93,15 +97,13 @@
 
 	onMount(async () => {
 		subscription = supabase
-			.channel('table-changes')
+			.channel('results-update')
 			.on(
-				'postgres_changes',
+				'broadcast',
 				{
-					event: '*',
-					schema: 'public',
-					table: 'results'
+					event: 'new-result'
 				},
-				(payload) => {
+				() => {
 					updateResults();
 				}
 			)
