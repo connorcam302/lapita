@@ -2,8 +2,8 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { grandPrix, races, results } from '$lib/server/db/schema';
 import type { RequestHandler } from './$types';
-import { validTracks } from '$lib/data/allTracks';
-import { desc } from 'drizzle-orm';
+import { validTracks, allTracks } from '$lib/data/allTracks';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const { participants } = await request.json();
@@ -14,21 +14,81 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const tracks = validTracks;
 
+	const [gpMinus2, gpMinus1] = await db.select().from(grandPrix).orderBy(desc(grandPrix.order)).limit(2);
+
+	const oldGpTracks = await db
+		.select()
+		.from(races)
+		.where(or(
+			eq(races.grandPrixId, gpMinus2.id),
+			eq(races.grandPrixId, gpMinus1.id),
+		))
+
+	const trackWeights = allTracks.map((track) => {
+		const oldGpTrackCount = oldGpTracks.filter((race) => race.trackStartId === track.id).length;
+
+		let weight = 1;
+		if (oldGpTrackCount === 2) {
+			weight = 0.6;
+		} else if (oldGpTrackCount === 1) {
+			weight = 0.8;
+		}
+		return {
+			...track,
+			weight
+		}
+	})
+
+	const generateTrackList = (tracks: any[], count: number) => {
+		const availableItems = [...tracks]; // Copy the array
+		const selected = [];
+
+		for (let i = 0; i < count && availableItems.length > 0; i++) {
+			// Calculate total weight of remaining items
+			const totalWeight = availableItems.reduce((sum, item) => sum + item.weight, 0);
+
+			// Generate random number
+			const random = Math.random() * totalWeight;
+
+			// Find selected item
+			let currentWeight = 0;
+			let selectedIndex = 0;
+
+			for (let j = 0; j < availableItems.length; j++) {
+				currentWeight += availableItems[j].weight;
+				if (random <= currentWeight) {
+					selectedIndex = j;
+					break;
+				}
+			}
+
+			// Add to selected and remove from available
+			selected.push(availableItems[selectedIndex]);
+			availableItems.splice(selectedIndex, 1);
+		}
+
+		return selected;
+	}
+
 	// select 16 random tracks from valid tracks
-	const trackList = tracks.sort(() => Math.random() - 0.5).slice(0, 16);
+	const trackList = generateTrackList(trackWeights, 16);
 
 	try {
 		const latestGP = await db.select().from(grandPrix).orderBy(desc(grandPrix.order)).limit(1);
-		const newgrandPrix = await db
+
+		console.log(latestGP)
+		const newGrandPrix = await db
 			.insert(grandPrix)
 			.values({ order: (latestGP[0]?.order ?? -1) + 1, participants })
 			.returning();
 
-		if (!newgrandPrix?.[0]) {
+		console.log(newGrandPrix)
+
+		if (!newGrandPrix?.[0]) {
 			return json({ error: 'Failed to create grand Prix' }, { status: 500 });
 		}
 
-		const grandPrixId = newgrandPrix[0].id;
+		const grandPrixId = newGrandPrix[0].id;
 		const raceList = await db
 			.insert(races)
 			.values(
@@ -50,7 +110,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			)
 		);
 
-		return json(newgrandPrix[0]);
+		return json(newGrandPrix[0]);
 	} catch (e) {
 		console.error(e);
 		return json({ error: 'An unexpected error occurred.' }, { status: 500 });

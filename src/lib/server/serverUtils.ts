@@ -74,7 +74,6 @@ export const getAllGpStandings = async () => {
 
 	const allResults = await Promise.all(forEachGp).then((gps) => {
 		return gps.map((gp) => {
-			console.log(gp);
 			return {
 				...gp,
 				standings: gp.standings[gp.standings.length - 1].results

@@ -17,20 +17,22 @@
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import MoveRight from '@lucide/svelte/icons/move-right';
 	import EditTrackButton from '$lib/components/custom/EditTrackButton.svelte';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 
 	const { data }: { data: PageData } = $props();
-	console.log(data);
+	//console.log(data);
 
 	let tab = $state('results');
 
 	let { grandPrixDetails, initialRaceResults, userList, characterList } = data;
 
 	let raceResults = $state(initialRaceResults);
-	let selectedCharacterId = $state(characterList[0].id);
+	let selectedCharacterId = $state(page.url.searchParams.get('character') || characterList[0].id);
 	let selectedCharacter = $derived(characterList.find((char) => char.id === selectedCharacterId));
-	let selectedUserId = $state(userList[0].id);
+	let selectedUserId = $state(page.url.searchParams.get('racer') || userList[0].id);
 	let selectedUser = $derived(userList.find((racer) => racer.id === Number(selectedUserId)));
-	let selectedRaceId = $state(raceResults[0].id);
+	let selectedRaceId = $state(page.url.searchParams.get('track') || raceResults[0].id);
 	let selectedRace = $derived(raceResults.find((track) => track.id === Number(selectedRaceId)));
 	let tableColours = $state('medals');
 
@@ -103,7 +105,8 @@
 				{
 					event: 'new-result'
 				},
-				() => {
+				(payload) => {
+					console.log(payload);
 					updateResults();
 				}
 			)
@@ -114,6 +117,12 @@
 		if (subscription) {
 			subscription.unsubscribe();
 		}
+	});
+
+	$effect(() => {
+		goto(
+			`/grandprix/${grandPrixDetails.id}/?racer=${selectedUserId}&character=${selectedCharacterId}&track=${selectedRaceId}`
+		);
 	});
 </script>
 
@@ -209,7 +218,7 @@
 		</Card.Header>
 		<Card.Content>
 			<img
-				src={`/track-locations/${selectedRace?.trackStartId}.jpg`}
+				src={`/tracks/locations/${selectedRace?.trackStartId}.jpg`}
 				alt={selectedRace.startTrackName}
 				class="rounded-md border"
 			/>
