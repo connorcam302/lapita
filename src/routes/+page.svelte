@@ -20,7 +20,7 @@
 			<a href="/grandprix/{gpResult.id}">
 				<Card.Root class="w-full">
 					<Card.Header>
-						<Card.Title>Grand Prix {gpResult.order + 1}</Card.Title>
+						<Card.Title>Grand Prix {gpResult.order}</Card.Title>
 					</Card.Header>
 					<Card.Content class="flex gap-4">
 						{#each gpResult.standings as standing, i (i)}

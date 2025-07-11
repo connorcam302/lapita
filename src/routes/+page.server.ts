@@ -35,7 +35,7 @@ export const load: PageServerLoad = async () => {
 		]
 	};
 
-	const allGpResults = await getAllGpStandings();
+	const allGpResults = await getAllGpStandings().then((res) => res.reverse());
 
 	const playerList = await db.select().from(users).orderBy(asc(users.name));
 
