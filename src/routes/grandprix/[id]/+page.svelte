@@ -158,10 +158,9 @@
 				class="rounded-md border"
 			/>
 			<div>
-				{#each selectedRaceWinChance as winChance}
-					{winChance.chance}
-				{/each}
-				<RaceWinChanceChart chances={selectedRaceWinChance} />
+				{#key selectedRaceWinChance}
+					<RaceWinChanceChart chances={selectedRaceWinChance} />
+				{/key}
 			</div>
 		</Card.Content>
 	</Card.Root>
