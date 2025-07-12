@@ -76,7 +76,7 @@
 					<div>Select All</div>
 				</Button>
 			</div>
-			<ScrollArea class="h-96 rounded-xl border">
+			<ScrollArea class="max-h-[600px]">
 				<div class="flex flex-col gap-2 pr-2">
 					{#each playerList as { id, name }, i (i)}
 						{#if userList.includes(id)}

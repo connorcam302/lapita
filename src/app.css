@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Oswald:wght@200..700&display=swap');
 @import 'tailwindcss';
+@source '../node_modules/layerchart/dist';
 
 @import 'tw-animate-css';
 
@@ -125,4 +126,11 @@
 	--font-title: 'Bungee', cursive;
 	--font-body: 'Oswald', sans-serif;
 	--color-lapita: oklch(0.861 0.1695 92.73);
+}
+@theme {
+--color-primary: hsl(...);
+--color-surface-100: hsl(...);
+--color-surface-200: hsl(...);
+--color-surface-300: hsl(...);
+--color-surface-content: hsl(...);
 }

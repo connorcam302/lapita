@@ -19,13 +19,14 @@
 	import EditTrackButton from '$lib/components/custom/EditTrackButton.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import RaceWinChanceChart from './RaceWinChanceChart.svelte';
 
 	const { data }: { data: PageData } = $props();
 	//console.log(data);
 
 	let tab = $state('results');
 
-	let { grandPrixDetails, initialRaceResults, userList, characterList } = data;
+	let { grandPrixDetails, initialRaceResults, userList, characterList, winChances } = data;
 
 	let raceResults = $state(initialRaceResults);
 	let selectedCharacterId = $state(page.url.searchParams.get('character') || characterList[0].id);
@@ -34,6 +35,13 @@
 	let selectedUser = $derived(userList.find((racer) => racer.id === Number(selectedUserId)));
 	let selectedRaceId = $state(page.url.searchParams.get('track') || raceResults[0].id);
 	let selectedRace = $derived(raceResults.find((track) => track.id === Number(selectedRaceId)));
+	let selectedRaceWinChance = $derived(
+		winChances.find(
+			(race) =>
+				race.trackId === selectedRace?.trackStartId && race.trackId === selectedRace?.trackEndId
+		) ?? undefined
+	);
+
 	let tableColours = $state('medals');
 
 	const getLatestRace = (races: any[]) => {
@@ -128,6 +136,36 @@
 
 <div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
 	<Card.Root>
+		<Card.Header class="flex justify-between">
+			<div class="flex flex-col gap-1.5">
+				<Card.Title class="flex items-center gap-2">
+					<div>{selectedRace?.startTrackName}</div>
+					{#if selectedRace?.startTrackName !== selectedRace?.endTrackName}
+						<div><MoveRightIcon /></div>
+						<div>{selectedRace?.endTrackName}</div>
+					{/if}
+				</Card.Title>
+				<Card.Description
+					>Race {selectedRace?.order + 1} of Grand Prix {grandPrixDetails.order}.</Card.Description
+				>
+			</div>
+			<EditTrackButton originalTrack={selectedRace} />
+		</Card.Header>
+		<Card.Content>
+			<img
+				src={`/tracks/locations/${selectedRace?.trackStartId}.jpg`}
+				alt={selectedRace.startTrackName}
+				class="rounded-md border"
+			/>
+			<div>
+				{#each selectedRaceWinChance as winChance}
+					{winChance.chance}
+				{/each}
+				<RaceWinChanceChart chances={selectedRaceWinChance} />
+			</div>
+		</Card.Content>
+	</Card.Root>
+	<Card.Root>
 		<Card.Header>
 			<Card.Title>Update Results</Card.Title>
 		</Card.Header>
@@ -200,30 +238,6 @@
 			</div>
 		</Card.Content>
 	</Card.Root>
-	<Card.Root>
-		<Card.Header class="flex justify-between">
-			<div class="flex flex-col gap-1.5">
-				<Card.Title class="flex items-center gap-2">
-					<div>{selectedRace?.startTrackName}</div>
-					{#if selectedRace?.startTrackName !== selectedRace?.endTrackName}
-						<div><MoveRightIcon /></div>
-						<div>{selectedRace?.endTrackName}</div>
-					{/if}
-				</Card.Title>
-				<Card.Description
-					>Race {selectedRace?.order + 1} of Grand Prix {grandPrixDetails.order}.</Card.Description
-				>
-			</div>
-			<EditTrackButton originalTrack={selectedRace} />
-		</Card.Header>
-		<Card.Content>
-			<img
-				src={`/tracks/locations/${selectedRace?.trackStartId}.jpg`}
-				alt={selectedRace.startTrackName}
-				class="rounded-md border"
-			/>
-		</Card.Content>
-	</Card.Root>
 	<div class="flex flex-col gap-2 md:flex-row">
 		<Card.Root class="min-w-40">
 			<Card.Header>
@@ -264,12 +278,22 @@
 			</Card.Content>
 		</Card.Root>
 		<Card.Root>
-			<Tabs.Root bind:value={tab} class="px-6">
-				<Tabs.List>
-					<Tabs.Trigger value="results">Results</Tabs.Trigger>
-					<Tabs.Trigger value="cumulative">Cumulative</Tabs.Trigger>
-				</Tabs.List>
-			</Tabs.Root>
+			<div class="flex justify-between px-6">
+				<Tabs.Root bind:value={tab}>
+					<Tabs.List>
+						<Tabs.Trigger value="results">Results</Tabs.Trigger>
+						<Tabs.Trigger value="cumulative">Cumulative</Tabs.Trigger>
+					</Tabs.List>
+				</Tabs.Root>
+				<!--
+				<Button
+					variant="outline"
+					onclick={() => fetch('/api/grandprix/40/user/6', { method: 'POST' })}
+				>
+					Add User
+				</Button>
+				-->
+			</div>
 			<Card.Header class="flex justify-between">
 				<div class="flex flex-col gap-1.5">
 					<Card.Title>Grand Prix {grandPrixDetails.order}</Card.Title>

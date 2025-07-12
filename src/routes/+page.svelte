@@ -9,7 +9,6 @@
 	const { data }: { data: PageData } = $props();
 
 	let { playerList, allGpResults } = data;
-	console.log(data);
 </script>
 
 <Header />

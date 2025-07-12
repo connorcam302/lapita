@@ -23,7 +23,7 @@ export const races = pgTable('races', {
 	startTime: timestamp('finish_time').default(sql`now()`),
 	id: serial('id').primaryKey(),
 	order: integer('order').notNull(),
-	grandPrixId: integer('grand_prix_id').references(() => grandPrix.id),
+	grandPrixId: integer('grand_prix_id').references(() => grandPrix.id, {onDelete: 'cascade'}),
 	trackStartId: text('track_start_id').references(() => tracks.id),
 	trackEndId: text('track_end_id').references(() => tracks.id),
 	transition: boolean('transition').notNull().default(false)
@@ -33,7 +33,7 @@ export const results = pgTable('results', {
 	id: serial('id').primaryKey(),
 	position: integer('position'),
 	userId: integer('user_id').references(() => users.id),
-	raceId: integer('race_id').references(() => races.id),
+	raceId: integer('race_id').references(() => races.id,{onDelete: 'cascade'}),
 	characterId: text('character_id').references(() => characters.id)
 });
 

@@ -14,15 +14,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const tracks = validTracks;
 
-	const [gpMinus2, gpMinus1] = await db.select().from(grandPrix).orderBy(desc(grandPrix.order)).limit(2);
+	const [gpMinus2, gpMinus1] = await db
+		.select()
+		.from(grandPrix)
+		.orderBy(desc(grandPrix.order))
+		.limit(2);
 
 	const oldGpTracks = await db
 		.select()
 		.from(races)
-		.where(or(
-			eq(races.grandPrixId, gpMinus2.id),
-			eq(races.grandPrixId, gpMinus1.id),
-		))
+		.where(or(eq(races.grandPrixId, gpMinus2.id), eq(races.grandPrixId, gpMinus1.id)));
 
 	const trackWeights = allTracks.map((track) => {
 		const oldGpTrackCount = oldGpTracks.filter((race) => race.trackStartId === track.id).length;
@@ -36,8 +37,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		return {
 			...track,
 			weight
-		}
-	})
+		};
+	});
 
 	const generateTrackList = (tracks: any[], count: number) => {
 		const availableItems = [...tracks]; // Copy the array
@@ -68,7 +69,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		return selected;
-	}
+	};
 
 	// select 16 random tracks from valid tracks
 	const trackList = generateTrackList(trackWeights, 16);
@@ -76,13 +77,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const latestGP = await db.select().from(grandPrix).orderBy(desc(grandPrix.order)).limit(1);
 
-		console.log(latestGP)
+		console.log(latestGP);
 		const newGrandPrix = await db
 			.insert(grandPrix)
 			.values({ order: (latestGP[0]?.order ?? -1) + 1, participants })
 			.returning();
 
-		console.log(newGrandPrix)
+		console.log(newGrandPrix);
 
 		if (!newGrandPrix?.[0]) {
 			return json({ error: 'Failed to create grand Prix' }, { status: 500 });

@@ -6,7 +6,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import Papa from 'papaparse';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { allTracks } from "../src/lib/data/allTracks";
+import { allTracks } from '../src/lib/data/allTracks';
 
 dotenv.config();
 
@@ -19,16 +19,22 @@ if (!databaseUrl) {
 const client = postgres(databaseUrl);
 const db = drizzle(client, { schema });
 
+const clearTables = false;
+const fromFresh = false;
+
 async function loadData() {
-	await db.delete(results);
-	await db.delete(races);
-	await db.delete(grandPrix);
-	await db.delete(users);
-	await db.delete(characters);
-	await db.delete(tracks);
+	if (clearTables) {
+		await db.delete(results);
+		await db.delete(races);
+		await db.delete(grandPrix);
+		await db.delete(users);
+		await db.delete(characters);
+		await db.delete(tracks);
+	}
 
 	const gpCharactersFile = fs.readFileSync('sample/gp-characters/gp-characters.csv', 'utf8');
-	const gpCharactersData = Papa.parse(gpCharactersFile, { header: true, skipEmptyLines: true }).data as {
+	const gpCharactersData = Papa.parse(gpCharactersFile, { header: true, skipEmptyLines: true })
+		.data as {
 		Player: string;
 		Character: string;
 		'GP Number': string;
@@ -43,25 +49,37 @@ async function loadData() {
 	}[];
 
 	const usersFile = fs.readFileSync('sample/users/users.csv', 'utf8');
-	const usersData = Papa.parse(usersFile, { header: true, skipEmptyLines: true }).data as { id: string; name: string }[]
-	await db.insert(users).values(
-		usersData.map((u) => ({
-			id: parseInt(u.id),
-			name: u.name
-		}))
-	);
-
-	const charactersFile = fs.readFileSync('sample/characters/characters.csv', 'utf8');
-	const charactersData = Papa.parse(charactersFile, { header: true, skipEmptyLines: true }).data as {
+	const usersData = Papa.parse(usersFile, { header: true, skipEmptyLines: true }).data as {
 		id: string;
 		name: string;
 	}[];
-	await db.insert(characters).values(charactersData);
+	if (fromFresh) {
+		await db.insert(users).values(
+			usersData.map((u) => ({
+				id: parseInt(u.id),
+				name: u.name
+			}))
+		);
+	}
+
+	const charactersFile = fs.readFileSync('sample/characters/characters.csv', 'utf8');
+	const charactersData = Papa.parse(charactersFile, { header: true, skipEmptyLines: true })
+		.data as {
+		id: string;
+		name: string;
+	}[];
+	if (fromFresh) {
+		await db.insert(characters).values(charactersData);
+	}
 
 	const tracksFile = fs.readFileSync('sample/tracks/tracks.csv', 'utf8');
-	const tracksData = Papa.parse(tracksFile, { header: true, skipEmptyLines: true }).data as { id: string; name: string }[];
-	await db.insert(tracks).values(tracksData);
-
+	const tracksData = Papa.parse(tracksFile, { header: true, skipEmptyLines: true }).data as {
+		id: string;
+		name: string;
+	}[];
+	if (fromFresh) {
+		await db.insert(tracks).values(tracksData);
+	}
 
 	const racesByGp = racesData.reduce((acc, row) => {
 		const gpNumber = parseInt(row['GP Number']);
@@ -73,32 +91,28 @@ async function loadData() {
 	}, {});
 
 	const gps = Object.values(
-		gpCharactersData.reduce(
-			(acc, row) => {
-				const gpNumber = parseInt(row['GP Number']);
-				if (!acc[gpNumber]) {
-					acc[gpNumber] = {
-						id: gpNumber,
-						order: gpNumber,
-						participants: []
-					};
-				}
+		gpCharactersData.reduce((acc, row) => {
+			const gpNumber = parseInt(row['GP Number']);
+			if (!acc[gpNumber]) {
+				acc[gpNumber] = {
+					id: gpNumber,
+					order: gpNumber,
+					participants: []
+				};
+			}
 
-				const playerId = usersData.find((u) => u.name === row.Player).id;
-				acc[gpNumber].participants.push(Number(playerId));
-				acc[gpNumber].participants.sort();
-				return acc;
-			},
-			{}
-		)
+			const playerId = usersData.find((u) => u.name === row.Player).id;
+			acc[gpNumber].participants.push(Number(playerId));
+			acc[gpNumber].participants.sort();
+			return acc;
+		}, {})
 	);
 	for (const gp of gps) {
 		await db.insert(grandPrix).values(gp);
 	}
 
-
 	for (const gpObject of Object.entries(racesByGp)) {
-		const [gpId, racesList] = gpObject
+		const [gpId, racesList] = gpObject;
 		let order = 0;
 
 		// Group races by track to handle multiple players per race
@@ -125,23 +139,31 @@ async function loadData() {
 			const trackEndId = allTracks.find((t) => t.name === trackEnd).id;
 
 			let raceId;
-			const existingRace = await db.select().from(races).where(
-				and(
-					eq(races.grandPrixId, parseInt(gpId)),
-					eq(races.trackStartId, trackStartId),
-					eq(races.trackEndId, trackEndId)
-				)).limit(1);
+			const existingRace = await db
+				.select()
+				.from(races)
+				.where(
+					and(
+						eq(races.grandPrixId, parseInt(gpId)),
+						eq(races.trackStartId, trackStartId),
+						eq(races.trackEndId, trackEndId)
+					)
+				)
+				.limit(1);
 
 			if (existingRace.length > 0) {
 				raceId = existingRace[0].id;
 			} else {
-				const newRace = await db.insert(races).values({
-					order,
-					grandPrixId: parseInt(gpId),
-					trackStartId,
-					trackEndId,
-					transition
-				}).returning();
+				const newRace = await db
+					.insert(races)
+					.values({
+						order,
+						grandPrixId: parseInt(gpId),
+						trackStartId,
+						trackEndId,
+						transition
+					})
+					.returning();
 				raceId = newRace[0].id;
 			}
 
@@ -157,9 +179,8 @@ async function loadData() {
 				const userId = user.id;
 
 				// Find character with error handling
-				const gpCharacter = gpCharactersData.find((gpc) =>
-					gpc.Player === playerRace.Player &&
-					parseInt(gpc['GP Number']) === parseInt(gpId)
+				const gpCharacter = gpCharactersData.find(
+					(gpc) => gpc.Player === playerRace.Player && parseInt(gpc['GP Number']) === parseInt(gpId)
 				);
 
 				if (!gpCharacter) {

@@ -65,7 +65,7 @@ const clamp = (val: number) => Math.max(0, Math.min(255, val));
 const toHex = (val: number) => clamp(val).toString(16).padStart(2, '0');
 
 export const getPositionColour = (position: number): string => {
-	if (!position || position < 1 || position > 24) return '#d1d5db'; // gray-300
+	if (!position || position < 1 || position > 24) return '#00000000'; // gray-300
 
 	if (position === 1) return '#00a63e'; // Pure green
 
@@ -85,4 +85,3 @@ export const getPositionColour = (position: number): string => {
 	const blue = 0;
 	return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 };
-
