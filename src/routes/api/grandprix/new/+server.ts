@@ -12,8 +12,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Invalid participants payload' }, { status: 400 });
 	}
 
-	const tracks = validTracks;
-
 	const [gpMinus2, gpMinus1] = await db
 		.select()
 		.from(grandPrix)
@@ -25,7 +23,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		.from(races)
 		.where(or(eq(races.grandPrixId, gpMinus2.id), eq(races.grandPrixId, gpMinus1.id)));
 
-	const trackWeights = allTracks.map((track) => {
+	const trackWeights = validTracks.map((track) => {
 		const oldGpTrackCount = oldGpTracks.filter((race) => race.trackStartId === track.id).length;
 
 		let weight = 1;
