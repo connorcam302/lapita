@@ -19,8 +19,8 @@ if (!databaseUrl) {
 const client = postgres(databaseUrl);
 const db = drizzle(client, { schema });
 
-const clearTables = false;
-const fromFresh = false;
+const clearTables = true;
+const fromFresh = true;
 
 async function loadData() {
 	if (clearTables) {
@@ -79,6 +79,15 @@ async function loadData() {
 	}[];
 	if (fromFresh) {
 		await db.insert(tracks).values(tracksData);
+	}
+
+	const kartsFile = fs.readFileSync('sample/karts/karts.csv', 'utf8');
+	const kartsData = Papa.parse(kartsFile, { header: true, skipEmptyLines: true }).data as {
+		id: string;
+		name: string;
+	}[];
+	if (fromFresh) {
+		await db.insert(schema.karts).values(kartsData);
 	}
 
 	const racesByGp = racesData.reduce((acc, row) => {

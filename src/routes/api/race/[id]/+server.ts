@@ -5,7 +5,7 @@ import { error } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 
 export const POST: RequestHandler = async ({ request, params }) => {
-	const { position, userId, characterId } = await request.json();
+	const { position, userId, characterId, kartId } = await request.json();
 
 	if (!position || !userId || !characterId) {
 		return error(400, { message: 'Missing required fields' });
@@ -15,7 +15,8 @@ export const POST: RequestHandler = async ({ request, params }) => {
 		.update(results)
 		.set({
 			position,
-			characterId
+			characterId,
+			kartId
 		})
 		.where(and(eq(results.userId, userId), eq(results.raceId, Number(params.id))))
 		.returning();

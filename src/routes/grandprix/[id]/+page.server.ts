@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { characters, grandPrix, races, results, tracks, users } from '$lib/server/db/schema';
+import { characters, grandPrix, karts, races, results, tracks, users } from '$lib/server/db/schema';
 import { asc, eq, inArray } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import {
@@ -27,6 +27,8 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	const characterList = await db.select().from(characters).orderBy(asc(characters.name));
 
+	const kartList = await db.select().from(karts).orderBy(asc(karts.name));
+
 	const races = initialRaceResults.map((race) => race.trackStartId);
 
 	const trackAverages = await getAveragePositionsByTracks(participants, races);
@@ -38,6 +40,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		grandPrixDetails,
 		initialRaceResults,
 		characterList,
+		kartList,
 		winChances
 	};
 };

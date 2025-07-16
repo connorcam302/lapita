@@ -20,17 +20,22 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import RaceWinChanceChart from './RaceWinChanceChart.svelte';
+	import { buttonVariants } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
 	const { data }: { data: PageData } = $props();
-	//console.log(data);
+	console.log(data);
 
 	let tab = $state('results');
 
-	let { grandPrixDetails, initialRaceResults, userList, characterList, winChances } = data;
+	let { grandPrixDetails, initialRaceResults, userList, characterList, kartList, winChances } =
+		data;
 
 	let raceResults = $state(initialRaceResults);
 	let selectedCharacterId = $state(page.url.searchParams.get('character') || characterList[0].id);
 	let selectedCharacter = $derived(characterList.find((char) => char.id === selectedCharacterId));
+	let selectedKartId = $state(page.url.searchParams.get('kart') || kartList[0].id);
+	let selectedKart = $derived(kartList.find((kart) => kart.id === selectedKartId));
 	let selectedUserId = $state(page.url.searchParams.get('racer') || userList[0].id);
 	let selectedUser = $derived(userList.find((racer) => racer.id === Number(selectedUserId)));
 	let selectedRaceId = $state(page.url.searchParams.get('track') || raceResults[0].id);
@@ -42,17 +47,25 @@
 		) ?? undefined
 	);
 
-	let tableColours = $state('medals');
+	let selectedRaceAverages = $derived(
+		selectedRaceWinChance.data.map((race) => {
+			return {
+				name: race.user.name,
+				average: race.user.average
+			};
+		})
+	);
+
+	let tableColours = $state(page.url.searchParams.get('results-view') || 'medals');
 
 	const getLatestRace = (races: any[]) => {
 		for (let i = races.length - 1; i >= 0; i--) {
-			// ✅ Use races.length
-			const race = races[i]; // ✅ Use races[i]
+			const race = races[i];
 			if (race.results.slice().some((r) => r.position !== null)) {
 				return race;
 			}
 		}
-		return races[0]; // ✅ Use races[0] as fallback
+		return races[0];
 	};
 
 	// Remove the redundant $effect block completely
@@ -75,13 +88,14 @@
 			body: JSON.stringify({
 				userId: selectedUserId,
 				characterId: selectedCharacterId,
+				kartId: selectedKartId,
 				position: finishPosition
 			})
 		});
 
 		if (res.ok) {
 			toast.success('Uploaded Result', {
-				description: `${selectedUser.name} finished ${addNumberSuffix(finishPosition)} in ${selectedRace.name}`
+				description: `${selectedUser.name} finished ${addNumberSuffix(finishPosition)} in ${selectedRace?.startTrackName}`
 			});
 			finishPosition = '';
 			subscription.send({
@@ -129,39 +143,84 @@
 
 	$effect(() => {
 		goto(
-			`/grandprix/${grandPrixDetails.id}/?racer=${selectedUserId}&character=${selectedCharacterId}&track=${selectedRaceId}`
+			`/grandprix/${grandPrixDetails.id}/?racer=${selectedUserId}&character=${selectedCharacterId}&track=${selectedRaceId}&kart=${selectedKartId}&results-view=${tableColours}`,
+			{ noScroll: true }
 		);
 	});
 </script>
 
 <div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
 	<Card.Root>
-		<Card.Header class="flex justify-between">
-			<div class="flex flex-col gap-1.5">
-				<Card.Title class="flex items-center gap-2">
-					<div>{selectedRace?.startTrackName}</div>
-					{#if selectedRace?.startTrackName !== selectedRace?.endTrackName}
-						<div><MoveRightIcon /></div>
-						<div>{selectedRace?.endTrackName}</div>
-					{/if}
-				</Card.Title>
-				<Card.Description
-					>Race {selectedRace?.order + 1} of Grand Prix {grandPrixDetails.order}.</Card.Description
-				>
+		<Card.Header>
+			<div class="flex justify-between">
+				<div class="flex items-center">
+					<Dialog.Root>
+						<Dialog.Trigger>
+							<img
+								src={`/tracks/icons/${selectedRace?.trackStartId}.png`}
+								alt={selectedRace?.startTrackName}
+								class="h-24 hover:cursor-pointer"
+							/>
+						</Dialog.Trigger>
+						<Dialog.Content class="md:min-w-4xl">
+							<Dialog.Title>{selectedRace?.startTrackName}</Dialog.Title>
+							<Dialog.Description>
+								<img
+									src={`/tracks/locations/${selectedRace?.trackStartId}.jpg`}
+									alt={selectedRace?.startTrackName}
+									class="min-w-full"
+								/>
+							</Dialog.Description>
+						</Dialog.Content>
+					</Dialog.Root>
+					<div class="flex flex-col gap-1.5">
+						<div class="flex items-center gap-2 leading-none font-semibold">
+							<div class="text-4xl">{selectedRace?.startTrackName}</div>
+							{#if selectedRace?.startTrackName !== selectedRace?.endTrackName}
+								<div><MoveRightIcon /></div>
+								<div>{selectedRace?.endTrackName}</div>
+							{/if}
+						</div>
+						<div class="text-muted-foreground text-sm">
+							Race {selectedRace?.order + 1} of Grand Prix {grandPrixDetails.order}.
+						</div>
+					</div>
+				</div>
+				<EditTrackButton originalTrack={selectedRace} />
 			</div>
-			<EditTrackButton originalTrack={selectedRace} />
 		</Card.Header>
 		<Card.Content>
-			<img
-				src={`/tracks/locations/${selectedRace?.trackStartId}.jpg`}
-				alt={selectedRace.startTrackName}
-				class="rounded-md border"
-			/>
-			<div>
-				{#key selectedRaceWinChance}
-					<RaceWinChanceChart chances={selectedRaceWinChance} />
-				{/key}
+			<div class="flex flex-col gap-2 px-6">
+				<div class="flex flex-col gap-1.5">
+					<div class="flex items-center gap-2 leading-none font-semibold">Average Placement</div>
+					<div class="text-muted-foreground text-sm">
+						Average placement to 2 d.p on <b>{selectedRace?.startTrackName}</b>
+					</div>
+				</div>
+				<Table.Root class="table-fixed">
+					<Table.Header>
+						<Table.Row>
+							{#each selectedRaceAverages as { name }, i (i)}
+								<Table.Head class="w-16 min-w-16 text-center md:w-full"
+									><div class="text-lg">{name}</div></Table.Head
+								>
+							{/each}
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						<Table.Row>
+							{#each selectedRaceAverages as { average }, i (i)}
+								<Table.Cell
+									class="text-center text-lg text-black"
+									style="background-color: {getPositionColour(average)}"
+									>{average.toFixed(2)}</Table.Cell
+								>
+							{/each}
+						</Table.Row>
+					</Table.Body>
+				</Table.Root>
 			</div>
+			<RaceWinChanceChart data={selectedRaceWinChance} />
 		</Card.Content>
 	</Card.Root>
 	<Card.Root>
@@ -173,8 +232,8 @@
 				<div>
 					<Select.Root type="single" bind:value={selectedUserId}>
 						<Select.Label>Racer</Select.Label>
-						<Select.Trigger class="w-[180px]">{selectedUser.name}</Select.Trigger>
-						<Select.Content>
+						<Select.Trigger class="w-[100px]">{selectedUser.name}</Select.Trigger>
+						<Select.Content class="md:max-w-16">
 							{#each userList as { id, name }, i (i)}
 								<Select.Item value={id.toString()}>{name}</Select.Item>
 							{/each}
@@ -184,7 +243,7 @@
 				<div>
 					<Select.Root type="single" bind:value={selectedRaceId}>
 						<Select.Label>Race</Select.Label>
-						<Select.Trigger class="w-[180px] truncate overflow-hidden text-ellipsis">
+						<Select.Trigger class="w-[240px] truncate overflow-hidden text-ellipsis">
 							{selectedRace.order + 1}.
 							{#if selectedRace.startTrackName === selectedRace.endTrackName}
 								{selectedRace.startTrackName}
@@ -215,12 +274,25 @@
 				<div>
 					<Select.Root type="single" bind:value={selectedCharacterId}>
 						<Select.Label>Character</Select.Label>
-						<Select.Trigger class="w-[180px]">
+						<Select.Trigger class="w-[160px]">
 							{selectedCharacter.name}
 						</Select.Trigger>
 						<Select.Content>
 							{#each characterList as character, i (i)}
 								<Select.Item value={character.id}>{character.name}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div>
+					<Select.Root type="single" bind:value={selectedKartId}>
+						<Select.Label>Kart</Select.Label>
+						<Select.Trigger class="w-[160px]">
+							{selectedKart.name}
+						</Select.Trigger>
+						<Select.Content>
+							{#each kartList as kart, i (i)}
+								<Select.Item value={kart.id}>{kart.name}</Select.Item>
 							{/each}
 						</Select.Content>
 					</Select.Root>
