@@ -268,16 +268,16 @@
 								<Table.Cell
 									class="text-center text-black"
 									style="background-color: {getPositionColour(average)}"
-									>{average.toFixed(2)}</Table.Cell
+									>{(average ?? 0).toFixed(2) || '-'}</Table.Cell
 								>
 								<Table.Cell
 									class="text-center text-black"
-									style="background-color: {getPositionColour(lastFiveAverage)}"
-									>{lastFiveAverage.toFixed(2)}</Table.Cell
+									style="background-color: {getPositionColour(lastFiveAverage ?? 0)}"
+									>{(lastFiveAverage ?? 0).toFixed(2) || '-'}</Table.Cell
 								>
 								<Table.Cell
 									class="text-center text-black"
-									style="background-color: {getPositionColour(bestResult)}">{bestResult}</Table.Cell
+									style="background-color: {getPositionColour(bestResult)}">{(bestResult ?? 0).toFixed(2) || '-'}</Table.Cell
 								>
 							</Table.Row>
 						{/each}

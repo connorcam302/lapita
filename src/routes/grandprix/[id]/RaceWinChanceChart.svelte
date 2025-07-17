@@ -32,12 +32,12 @@
 	} satisfies Chart.ChartConfig;
 </script>
 
-<Card.Root class="border-none px-0 shadow-none py-0">
+<Card.Root class="border-none px-0 py-0 shadow-none">
 	<Card.Header class="px-0">
 		<Card.Title>Win Chance</Card.Title>
 		<Card.Description>Percent chance to win <b>{data.trackName}</b></Card.Description>
 	</Card.Header>
-	<Card.Content class="px-0">
+	<Card.Content class="px-6">
 		<Chart.Container class="h-48 w-full" config={chartConfig}>
 			<BarChart
 				labels={{ format: (value) => `${value}%`, offset: 12 }}
@@ -46,6 +46,7 @@
 				y="user"
 				x="chance"
 				orientation="horizontal"
+				padding={{ left: 0, right: 0, top: 0, bottom: 0 }}
 				axis="y"
 				cRange={chartData.map((c) => c.colour)}
 				c="colour"
