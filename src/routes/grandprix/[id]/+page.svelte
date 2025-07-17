@@ -268,7 +268,6 @@
 								<Table.Head class="w-32 text-center">Average</Table.Head>
 								<Table.Head class="w-32 text-center">Last 5</Table.Head>
 								<Table.Head class="w-24 text-center">Trend</Table.Head>
-								<Table.Head class="w-32 text-center">Best</Table.Head>
 								<Table.Head class="w-48 text-center">Consistency</Table.Head>
 							</Table.Row>
 						</Table.Header>
@@ -316,14 +315,6 @@
 												<MoveRightIcon />{trend.toFixed(1)}
 											</div>
 										{/if}
-									</Table.Cell>
-									<Table.Cell class="flex items-center justify-center text-center text-black">
-										<div
-											class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
-											style="background-color: {getPositionColour(bestResult)}"
-										>
-											{(bestResult ?? 0) || '-'}
-										</div>
 									</Table.Cell>
 									<Table.Cell class="text-center text-white">
 										<Progress
