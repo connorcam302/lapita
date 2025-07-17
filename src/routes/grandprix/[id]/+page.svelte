@@ -28,8 +28,15 @@
 
 	let tab = $state('results');
 
-	let { grandPrixDetails, initialRaceResults, userList, characterList, kartList, winChances } =
-		data;
+	let {
+		grandPrixDetails,
+		initialRaceResults,
+		userList,
+		characterList,
+		kartList,
+		winChances,
+		trackAverages
+	} = data;
 
 	let raceResults = $state(initialRaceResults);
 	let selectedCharacterId = $state(page.url.searchParams.get('character') || characterList[0].id);
@@ -47,14 +54,56 @@
 		) ?? undefined
 	);
 
-	let selectedRaceAverages = $derived(
-		selectedRaceWinChance.data.map((race) => {
-			return {
-				name: race.user.name,
-				average: race.user.average
-			};
-		})
+	const transformAverages = (averages) => {
+		const result = [];
+
+		// Use averages as the base since it has the most complete data
+		averages.averages.forEach((track) => {
+			const trackId = track.trackId;
+
+			// Find corresponding data in lastFiveResults and bestResults
+			const lastFiveData = averages.lastFiveResults.find((t) => t.trackId === trackId);
+			const bestData = averages.bestResults.find((t) => t.trackId === trackId);
+
+			// Transform the data for each user
+			const userData = track.data.map((user) => {
+				// Find corresponding user data in lastFiveResults and bestResults
+				const lastFiveUser = lastFiveData?.data.find((u) => u.userId === user.userId);
+				const bestUser = bestData?.data.find((u) => u.userId === user.userId);
+
+				return {
+					userId: user.userId,
+					name: user.name,
+					lastFiveAverage: lastFiveUser ? parseFloat(lastFiveUser.avgPosition) : null,
+					bestResult: bestUser ? bestUser.position : null,
+					average: parseFloat(user.avg)
+				};
+			});
+
+			const average = userData.reduce((acc, user) => acc + user.average, 0);
+			const lastFiveAverage = userData.reduce((acc, user) => acc + (user.lastFiveAverage ?? 0), 0);
+			const bestResult = userData.reduce((acc, user) => acc + (user.bestResult ?? 0), 0);
+
+			result.push({
+				trackId: trackId,
+				average: average / userData.length,
+				lastFiveAverage: lastFiveAverage / userData.length,
+				bestResult: bestResult / userData.length,
+				data: userData
+			});
+		});
+
+		return result;
+	};
+
+	const selectedRaceAveragesData = $derived(
+		transformAverages(trackAverages).find(
+			(race) =>
+				race.trackId === selectedRace?.trackStartId && race.trackId === selectedRace?.trackEndId
+		)
 	);
+
+	$inspect(selectedRaceAveragesData);
 
 	let tableColours = $state(page.url.searchParams.get('results-view') || 'medals');
 
@@ -147,6 +196,10 @@
 			{ noScroll: true }
 		);
 	});
+
+	$effect(() => {
+		console.log(selectedRaceWinChance);
+	});
 </script>
 
 <div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
@@ -190,7 +243,9 @@
 			</div>
 		</Card.Header>
 		<Card.Content>
-			<div class="flex flex-col gap-2 px-6">
+		<div class='flex flex-col gap-8'>
+		<Separator orientation="horizontal" />
+			<div class="flex flex-col gap-2">
 				<div class="flex flex-col gap-1.5">
 					<div class="flex items-center gap-2 leading-none font-semibold">Average Placement</div>
 					<div class="text-muted-foreground text-sm">
@@ -200,27 +255,57 @@
 				<Table.Root class="table-fixed">
 					<Table.Header>
 						<Table.Row>
-							{#each selectedRaceAverages as { name }, i (i)}
-								<Table.Head class="w-16 min-w-16 text-center md:w-full"
-									><div class="text-lg">{name}</div></Table.Head
-								>
-							{/each}
+							<Table.Head class="w-20 md:w-32">Racer</Table.Head>
+							<Table.Head class="text-center">Average</Table.Head>
+							<Table.Head class="text-center">Last 5</Table.Head>
+							<Table.Head class="text-center">Best</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
-						<Table.Row>
-							{#each selectedRaceAverages as { average }, i (i)}
+						{#each selectedRaceAveragesData.data as { name, lastFiveAverage, bestResult, average }, i (i)}
+							<Table.Row>
+								<Table.Cell class="font-medium">{name}</Table.Cell>
 								<Table.Cell
-									class="text-center text-lg text-black"
+									class="text-center text-black"
 									style="background-color: {getPositionColour(average)}"
 									>{average.toFixed(2)}</Table.Cell
 								>
-							{/each}
+								<Table.Cell
+									class="text-center text-black"
+									style="background-color: {getPositionColour(lastFiveAverage)}"
+									>{lastFiveAverage.toFixed(2)}</Table.Cell
+								>
+								<Table.Cell
+									class="text-center text-black"
+									style="background-color: {getPositionColour(bestResult)}">{bestResult}</Table.Cell
+								>
+							</Table.Row>
+						{/each}
+						<Table.Row>
+							<Table.Cell class="font-medium">Average</Table.Cell>
+							<Table.Cell
+								class="text-center text-black"
+								style="background-color: {getPositionColour(selectedRaceAveragesData.average)}"
+								>{selectedRaceAveragesData.average.toFixed(2)}</Table.Cell
+							>
+							<Table.Cell
+								class="text-center text-black"
+								style="background-color: {getPositionColour(
+									selectedRaceAveragesData.lastFiveAverage
+								)}">{selectedRaceAveragesData.lastFiveAverage.toFixed(2)}</Table.Cell
+							>
+							<Table.Cell
+								class="text-center text-black"
+								style="background-color: {getPositionColour(selectedRaceAveragesData.bestResult)}"
+								>{selectedRaceAveragesData.bestResult}</Table.Cell
+							>
 						</Table.Row>
 					</Table.Body>
 				</Table.Root>
 			</div>
+			<Separator orientation="horizontal" />
 			<RaceWinChanceChart data={selectedRaceWinChance} />
+			</div>
 		</Card.Content>
 	</Card.Root>
 	<Card.Root>

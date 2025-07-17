@@ -6,12 +6,13 @@
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { cubicInOut } from 'svelte/easing';
+	import { getPositionColour } from '$lib/utils';
 
 	let { data } = $props();
 
 	let context = $state<ChartContextchance>();
 
-	let unformattedData = $state(data.data);
+	let unformattedData = $derived(data.data);
 
 	let chartData = $derived(
 		unformattedData.map((chance) => {
@@ -20,7 +21,8 @@
 				chance: Math.floor(chance.chance * 10) / 10,
 				average: chance.user.average,
 				formFactor: chance.formFactor,
-				form: chance.user.recentForm
+				form: chance.user.recentForm,
+				colour: getPositionColour(chance.user.average)
 			};
 		})
 	);
@@ -30,35 +32,46 @@
 	} satisfies Chart.ChartConfig;
 </script>
 
-<Card.Root class="border-none">
-	<Card.Header>
+<Card.Root class="border-none px-0 shadow-none py-0">
+	<Card.Header class="px-0">
 		<Card.Title>Win Chance</Card.Title>
 		<Card.Description>Percent chance to win <b>{data.trackName}</b></Card.Description>
 	</Card.Header>
-	<Card.Content class="py-4">
+	<Card.Content class="px-0">
 		<Chart.Container class="h-48 w-full" config={chartConfig}>
 			<BarChart
-				labels={{ format: (value) => `${value}%`, offset: 12}}
+				labels={{ format: (value) => `${value}%`, offset: 12 }}
 				data={chartData}
-				xScale={scaleBand().padding(0.25)}
-				x="user"
-				series={[{ key: 'chance', label: 'Chance', color: '#f5cd30' }]}
-				axis="x"
+				yScale={scaleBand().padding(0.25)}
+				y="user"
+				x="chance"
+				orientation="horizontal"
+				axis="y"
+				cRange={chartData.map((c) => c.colour)}
+				c="colour"
 				rule={false}
 				props={{
 					bars: {
 						stroke: 'none',
 						radius: 8,
-						rounded: 'top',
+						rounded: 'all',
 						// use the height of the chart to animate the bars
 						initialY: (context?.height ?? 0) + 180,
 						initialHeight: 0,
 						motion: {
-							y: { type: 'tween', duration: 500, easing: cubicInOut },
-							height: { type: 'tween', duration: 500, easing: cubicInOut }
+							x: { type: 'tween', duration: 500, easing: cubicInOut },
+							width: { type: 'tween', duration: 500, easing: cubicInOut }
 						}
 					},
-					highlight: { area: { fill: 'none' } }
+					highlight: { area: { fill: 'none' } },
+					yAxis: {
+						tickLabelProps: {
+							textAnchor: 'start',
+							dx: 6,
+							class: 'stroke-none fill-background!'
+						},
+						tickLength: 0
+					}
 				}}
 			>
 				{#snippet tooltip()}
@@ -74,24 +87,27 @@
 								<Table.Body>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Win Chance</Table.Cell>
-										<Table.Cell class="text-right text-xs">{item.payload.chance}%</Table.Cell>
+										<Table.Cell class="text-right text-xs font-medium"
+											>{item.payload.chance}%</Table.Cell
+										>
 									</Table.Row>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Average Pos</Table.Cell>
-										<Table.Cell class="text-right text-xs"
+										<Table.Cell class="text-right text-xs font-medium"
 											>{item.payload.average.toFixed(2)}</Table.Cell
 										>
 									</Table.Row>
 									<Table.Row class="">
-										<div></div>
-									</Table.Row>
-									<Table.Row class="">
 										<Table.Cell class="text-xs">Form Factor</Table.Cell>
-										<Table.Cell class="text-right text-xs">{item.payload.formFactor}</Table.Cell>
+										<Table.Cell class="text-right text-xs font-medium"
+											>{item.payload.formFactor}</Table.Cell
+										>
 									</Table.Row>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Form</Table.Cell>
-										<Table.Cell class="text-right text-xs">{item.payload.form}</Table.Cell>
+										<Table.Cell class="text-right text-xs font-medium"
+											>{item.payload.form}</Table.Cell
+										>
 									</Table.Row>
 								</Table.Body>
 							</Table.Root>

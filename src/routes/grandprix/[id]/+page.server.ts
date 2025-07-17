@@ -5,7 +5,9 @@ import type { PageServerLoad } from './$types';
 import {
 	calculateRaceWinChance,
 	getRaceResultsByGpId,
-	getAveragePositionsByTracks
+	getAveragePositionsByTracks,
+	getAveragePositionsByTracksLastFive,
+	getBestPositionsByTracks
 } from '$lib/server/serverUtils';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -35,12 +37,30 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	const winChances = calculateRaceWinChance(trackAverages, [], 0);
 
+	const lastFiveResults = await getAveragePositionsByTracksLastFive(participants, races);
+	const bestResults = await getBestPositionsByTracks(participants, races);
+
+	const formatAverages = (trackAverages) => {
+		return races.map((trackId) => {
+			const averagesForTrack = trackAverages.filter((track) => track.trackId === trackId);
+			return {
+				trackId,
+				data: averagesForTrack.sort((a, b) => a.name.localeCompare(b.name))
+			};
+		});
+	};
+
 	return {
 		userList,
 		grandPrixDetails,
 		initialRaceResults,
 		characterList,
 		kartList,
-		winChances
+		winChances,
+		trackAverages: {
+			averages: formatAverages(trackAverages),
+			lastFiveResults: formatAverages(lastFiveResults),
+			bestResults: formatAverages(bestResults)
+		}
 	};
 };
