@@ -9,10 +9,12 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import RouteIcon from '@lucide/svelte/icons/route';
 	import MoveRightIcon from '@lucide/svelte/icons/move-right';
+	import MoveUpRightIcon from '@lucide/svelte/icons/trending-up';
+	import MoveDownRightIcon from '@lucide/svelte/icons/trending-down';
 	import { onMount, onDestroy } from 'svelte';
 	import { supabase } from '$lib/supabaseClient';
 	import { toast } from 'svelte-sonner';
-	import { addNumberSuffix, getPositionColour } from '$lib/utils';
+	import { addNumberSuffix, getPositionColour, calculateConsistency } from '$lib/utils';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import MoveRight from '@lucide/svelte/icons/move-right';
@@ -22,6 +24,9 @@
 	import RaceWinChanceChart from './RaceWinChanceChart.svelte';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import MoveDownRight from '@lucide/svelte/icons/move-down-right';
+	import MoveUpRight from '@lucide/svelte/icons/move-up-right';
+	import { Progress } from '$lib/components/ui/progress/index.ts';
 
 	const { data }: { data: PageData } = $props();
 	console.log(data);
@@ -75,10 +80,13 @@
 					userId: user.userId,
 					name: user.name,
 					lastFiveAverage: lastFiveUser ? parseFloat(lastFiveUser.avgPosition) : null,
+					lastFiveResults: lastFiveUser ? lastFiveUser.positions : null,
 					bestResult: bestUser ? bestUser.position : null,
 					average: parseFloat(user.avg)
 				};
 			});
+
+			console.log(userData);
 
 			const average = userData.reduce((acc, user) => acc + user.average, 0);
 			const lastFiveAverage = userData.reduce((acc, user) => acc + (user.lastFiveAverage ?? 0), 0);
@@ -88,6 +96,7 @@
 				trackId: trackId,
 				average: average / userData.length,
 				lastFiveAverage: lastFiveAverage / userData.length,
+				lastFiveResults: userData.lastFiveResults,
 				bestResult: bestResult / userData.length,
 				data: userData
 			});
@@ -243,68 +252,93 @@
 			</div>
 		</Card.Header>
 		<Card.Content>
-		<div class='flex flex-col gap-8'>
-		<Separator orientation="horizontal" />
-			<div class="flex flex-col gap-2">
-				<div class="flex flex-col gap-1.5">
-					<div class="flex items-center gap-2 leading-none font-semibold">Average Placement</div>
-					<div class="text-muted-foreground text-sm">
-						Average placement to 2 d.p on <b>{selectedRace?.startTrackName}</b>
+			<div class="flex flex-col gap-8">
+				<Separator orientation="horizontal" />
+				<div class="flex flex-col gap-2">
+					<div class="flex flex-col gap-1.5">
+						<div class="flex items-center gap-2 leading-none font-semibold">Average Placement</div>
+						<div class="text-muted-foreground text-sm">
+							Average placement to 2 d.p on <b>{selectedRace?.startTrackName}</b>
+						</div>
 					</div>
-				</div>
-				<Table.Root class="table-fixed">
-					<Table.Header>
-						<Table.Row>
-							<Table.Head class="w-20 md:w-32">Racer</Table.Head>
-							<Table.Head class="text-center">Average</Table.Head>
-							<Table.Head class="text-center">Last 5</Table.Head>
-							<Table.Head class="text-center">Best</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each selectedRaceAveragesData.data as { name, lastFiveAverage, bestResult, average }, i (i)}
+					<Table.Root>
+						<Table.Header>
 							<Table.Row>
-								<Table.Cell class="font-medium">{name}</Table.Cell>
-								<Table.Cell
-									class="text-center text-black"
-									style="background-color: {getPositionColour(average)}"
-									>{(average ?? 0).toFixed(2) || '-'}</Table.Cell
-								>
-								<Table.Cell
-									class="text-center text-black"
-									style="background-color: {getPositionColour(lastFiveAverage ?? 0)}"
-									>{(lastFiveAverage ?? 0).toFixed(2) || '-'}</Table.Cell
-								>
-								<Table.Cell
-									class="text-center text-black"
-									style="background-color: {getPositionColour(bestResult)}">{(bestResult ?? 0).toFixed(2) || '-'}</Table.Cell
-								>
+								<Table.Head class="w-20 md:w-32">Racer</Table.Head>
+								<Table.Head class="w-32 text-center">Average</Table.Head>
+								<Table.Head class="w-32 text-center">Last 5</Table.Head>
+								<Table.Head class="w-24 text-center">Trend</Table.Head>
+								<Table.Head class="w-32 text-center">Best</Table.Head>
+								<Table.Head class="w-48 text-center">Consistency</Table.Head>
 							</Table.Row>
-						{/each}
-						<Table.Row>
-							<Table.Cell class="font-medium">Average</Table.Cell>
-							<Table.Cell
-								class="text-center text-black"
-								style="background-color: {getPositionColour(selectedRaceAveragesData.average)}"
-								>{selectedRaceAveragesData.average.toFixed(2)}</Table.Cell
-							>
-							<Table.Cell
-								class="text-center text-black"
-								style="background-color: {getPositionColour(
-									selectedRaceAveragesData.lastFiveAverage
-								)}">{selectedRaceAveragesData.lastFiveAverage.toFixed(2)}</Table.Cell
-							>
-							<Table.Cell
-								class="text-center text-black"
-								style="background-color: {getPositionColour(selectedRaceAveragesData.bestResult)}"
-								>{selectedRaceAveragesData.bestResult}</Table.Cell
-							>
-						</Table.Row>
-					</Table.Body>
-				</Table.Root>
-			</div>
-			<Separator orientation="horizontal" />
-			<RaceWinChanceChart data={selectedRaceWinChance} />
+						</Table.Header>
+						<Table.Body>
+							{#each selectedRaceAveragesData.data as { name, lastFiveAverage, bestResult, average, lastFiveResults }, i (i)}
+								<Table.Row>
+									<Table.Cell class="font-medium">{name}</Table.Cell>
+									<Table.Cell class="flex items-center justify-center text-center text-black">
+										<div
+											class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
+											style="background-color: {getPositionColour(average)}"
+										>
+											{(average ?? 0).toFixed(2) || '-'}
+										</div></Table.Cell
+									>
+									<Table.Cell class="w-44 py-0 text-center text-black">
+										<div class="flex h-full items-center justify-center gap-2">
+											{#each lastFiveResults as result}
+												<div
+													class="flex h-8 w-8 items-center justify-center rounded-sm text-center text-black"
+													style="background-color: {getPositionColour(result)}"
+												>
+													{result}
+												</div>
+											{/each}
+										</div>
+									</Table.Cell>
+
+									<Table.Cell class="w-44 py-0 text-center text-black">
+										{@const trend = average - lastFiveAverage}
+										{#if trend > 0.5}
+											<div class="flex items-center justify-center gap-2 text-green-600">
+												<MoveUpRightIcon />+{trend.toFixed(1)}
+											</div>
+										{:else if trend < -0.5}
+											<div class="flex items-center justify-center gap-2 text-red-600">
+												<MoveDownRightIcon />{trend.toFixed(1)}
+											</div>
+										{:else if trend > 0}
+											<div class="flex items-center justify-center gap-2 text-yellow-500">
+												<MoveRightIcon />+{trend.toFixed(1)}
+											</div>
+										{:else if trend < 0}
+											<div class="flex items-center justify-center gap-2 text-yellow-400">
+												<MoveRightIcon />{trend.toFixed(1)}
+											</div>
+										{/if}
+									</Table.Cell>
+									<Table.Cell class="flex items-center justify-center text-center text-black">
+										<div
+											class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
+											style="background-color: {getPositionColour(bestResult)}"
+										>
+											{(bestResult ?? 0) || '-'}
+										</div>
+									</Table.Cell>
+									<Table.Cell class="text-center text-white">
+										<Progress
+											value={calculateConsistency(lastFiveResults) * 100}
+											class="bg-neutral-800"
+											indicatorColour="bg-red-500"
+										/>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</div>
+				<Separator orientation="horizontal" />
+				<RaceWinChanceChart data={selectedRaceWinChance} />
 			</div>
 		</Card.Content>
 	</Card.Root>

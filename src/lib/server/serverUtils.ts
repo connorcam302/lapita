@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { grandPrix, races, results, tracks, users } from '$lib/server/db/schema';
-import { and, asc, avg, count, desc, eq, inArray, isNotNull, min, or, sql } from 'drizzle-orm';
+import { and, asc, avg, count, desc, eq, inArray, isNotNull, lte, min, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { placementToPoints } from '$lib/utils';
 import { allTracks } from '$lib/data/allTracks';
@@ -98,36 +98,38 @@ export const getAveragePositionsByTracksLastFive = async (
 	userIds: number[],
 	trackIds: string[]
 ) => {
-	const lastFiveRacesSubquery = db.$with('latest_races').as(
-		db
-			.select({
-				id: races.id,
-				userId: results.userId,
-				trackId: races.trackStartId,
-				order: races.order,
-				rn: sql<number>`row_number() OVER (PARTITION BY ${results.userId}, ${races.trackStartId} ORDER BY ${races.order} ASC)`.as(
-					'rn'
-				)
-			})
-			.from(results)
-			.innerJoin(races, eq(results.raceId, races.id))
-			.where(and(inArray(races.trackStartId, trackIds), inArray(results.userId, userIds)))
-	);
+const lastFiveRacesSubquery = db.$with('latest_races').as(
+    db
+        .select({
+            id: races.id,
+            userId: results.userId,
+            trackId: races.trackStartId,
+            order: races.order,
+            rn: sql<number>`row_number() OVER (PARTITION BY ${results.userId}, ${races.trackStartId} ORDER BY ${races.order} DESC)`.as('rn')
+        })
+        .from(results)
+        .innerJoin(races, eq(results.raceId, races.id))
+        .where(and(inArray(races.trackStartId, trackIds), inArray(results.userId, userIds)))
+);
 
-	return await db
-		.with(lastFiveRacesSubquery)
-		.select({
-			userId: results.userId,
-			name: users.name,
-			trackId: races.trackStartId,
-			avgPosition: avg(results.position).as('avgPosition')
-		})
-		.from(results)
-		.innerJoin(lastFiveRacesSubquery, eq(results.raceId, lastFiveRacesSubquery.id))
-		.innerJoin(users, eq(results.userId, users.id))
-		.innerJoin(races, eq(results.raceId, races.id))
-		.where(and(eq(lastFiveRacesSubquery.rn, 5), inArray(results.userId, userIds)))
-		.groupBy(results.userId, races.trackStartId, users.name);
+return await db
+    .with(lastFiveRacesSubquery)
+    .select({
+        userId: results.userId,
+        name: users.name,
+        trackId: races.trackStartId,
+        positions: sql<number>`array_agg(${results.position} ORDER BY ${races.order} DESC)`,
+        avgPosition: avg(results.position).as('avgPosition')
+    })
+    .from(results)
+    .innerJoin(lastFiveRacesSubquery, and(
+        eq(results.raceId, lastFiveRacesSubquery.id),
+        eq(results.userId, lastFiveRacesSubquery.userId)  // This is the key addition
+    ))
+    .innerJoin(users, eq(results.userId, users.id))
+    .innerJoin(races, eq(results.raceId, races.id))
+    .where(lte(lastFiveRacesSubquery.rn, 5))
+    .groupBy(results.userId, races.trackStartId, users.name);
 };
 
 export const getBestPositionsByTracks = async (userIds: number[], trackIds: string[]) => {

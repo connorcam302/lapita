@@ -85,3 +85,34 @@ export const getPositionColour = (position: number): string => {
 	const blue = 0;
 	return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 };
+
+export const calculateConsistency = (positions: number[]) => {
+	if (positions.length < 2) return 1;
+
+	const avg = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
+
+	const variance =
+		positions.reduce((sum, pos) => sum + Math.pow(pos - avg, 2), 0) / positions.length;
+	const stdDev = Math.sqrt(variance);
+
+	const consistency = Math.max(0, 1 - stdDev / 5);
+
+	return Math.round(consistency * 100) / 100;
+};
+
+export const getConsistencyColorGradient = (consistency: number) => {
+	const value = Math.max(0, Math.min(1, consistency));
+
+	if (value >= 0.7) {
+		// Green range (70-100%)
+		const greenIntensity = Math.round(255 * ((value - 0.7) / 0.3));
+		return `rgb(${Math.max(0, 255 - greenIntensity)}, 255, ${Math.max(0, 255 - greenIntensity)})`;
+	} else if (value >= 0.4) {
+		// Yellow range (40-70%)
+		return `rgb(255, ${Math.round(255 * ((value - 0.4) / 0.3))}, 0)`;
+	} else {
+		// Red range (0-40%)
+		const redIntensity = Math.round(255 * (value / 0.4));
+		return `rgb(255, ${redIntensity}, ${redIntensity})`;
+	}
+};
