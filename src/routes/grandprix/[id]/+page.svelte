@@ -14,7 +14,12 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { supabase } from '$lib/supabaseClient';
 	import { toast } from 'svelte-sonner';
-	import { addNumberSuffix, getPositionColour, calculateConsistency } from '$lib/utils';
+	import {
+		addNumberSuffix,
+		getPositionColour,
+		calculateConsistency,
+		getConsistencyColorGradient,
+	} from '$lib/utils';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import MoveRight from '@lucide/svelte/icons/move-right';
@@ -306,11 +311,11 @@
 											<div class="flex items-center justify-center gap-2 text-red-600">
 												<MoveDownRightIcon />{trend.toFixed(1)}
 											</div>
-										{:else if trend > 0}
+										{:else if trend >= 0}
 											<div class="flex items-center justify-center gap-2 text-yellow-500">
 												<MoveRightIcon />+{trend.toFixed(1)}
 											</div>
-										{:else if trend < 0}
+										{:else if trend <= 0}
 											<div class="flex items-center justify-center gap-2 text-yellow-400">
 												<MoveRightIcon />{trend.toFixed(1)}
 											</div>
@@ -320,7 +325,9 @@
 										<Progress
 											value={calculateConsistency(lastFiveResults) * 100}
 											class="bg-neutral-800"
-											indicatorColour="bg-red-500"
+											indicatorColour={getConsistencyColorGradient(
+												calculateConsistency(lastFiveResults)
+											)}
 										/>
 									</Table.Cell>
 								</Table.Row>

@@ -64,6 +64,25 @@ export const placementToPoints: Record<number, number> = {
 const clamp = (val: number) => Math.max(0, Math.min(255, val));
 const toHex = (val: number) => clamp(val).toString(16).padStart(2, '0');
 
+export const rgbToHex = (rgbString: string) => {
+	// Extract numbers from rgb string using regex
+	const match = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+
+	if (!match) {
+		throw new Error('Invalid RGB string format');
+	}
+
+	// Parse the RGB values
+	const r = parseInt(match[1]);
+	const g = parseInt(match[2]);
+	const b = parseInt(match[3]);
+
+	// Convert to hex and pad with zeros if needed
+	const toHex = (n) => n.toString(16).padStart(2, '0');
+
+	return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
 export const getPositionColour = (position: number): string => {
 	if (!position || position < 1 || position > 24) return '#00000000'; // gray-300
 
@@ -106,13 +125,15 @@ export const getConsistencyColorGradient = (consistency: number) => {
 	if (value >= 0.7) {
 		// Green range (70-100%)
 		const greenIntensity = Math.round(255 * ((value - 0.7) / 0.3));
-		return `rgb(${Math.max(0, 255 - greenIntensity)}, 255, ${Math.max(0, 255 - greenIntensity)})`;
+		return rgbToHex(
+			`rgb(${Math.max(0, 255 - greenIntensity)}, 255, ${Math.max(0, 255 - greenIntensity)})`
+		);
 	} else if (value >= 0.4) {
 		// Yellow range (40-70%)
-		return `rgb(255, ${Math.round(255 * ((value - 0.4) / 0.3))}, 0)`;
+		return rgbToHex(`rgb(255, ${Math.round(255 * ((value - 0.4) / 0.3))}, 0)`);
 	} else {
 		// Red range (0-40%)
 		const redIntensity = Math.round(255 * (value / 0.4));
-		return `rgb(255, ${redIntensity}, ${redIntensity})`;
+		return rgbToHex(`rgb(255, ${redIntensity}, ${redIntensity})`);
 	}
 };

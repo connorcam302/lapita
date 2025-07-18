@@ -4,12 +4,14 @@
 
 	let {
 		ref = $bindable(null),
-		indicatorColour = 'bg-primary',
+		indicatorColour,
 		class: className,
 		max = 100,
 		value,
 		...restProps
 	}: WithoutChildrenOrChild<ProgressPrimitive.RootProps> = $props();
+
+	console.log(indicatorColour);
 </script>
 
 <ProgressPrimitive.Root
@@ -22,7 +24,8 @@
 >
 	<div
 		data-slot="progress-indicator"
-		class={`bg-lapita h-full w-full flex-1 transition-all`}
-		style="transform: translateX(-{100 - (100 * (value ?? 0)) / (max ?? 1)}%)"
+		class={`h-full w-full flex-1 transition-all`}
+		style="transform: translateX(-{100 -
+			(100 * (value ?? 0)) / (max ?? 1)}%); background-color: {indicatorColour};"
 	></div>
 </ProgressPrimitive.Root>
