@@ -75,13 +75,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const latestGP = await db.select().from(grandPrix).orderBy(desc(grandPrix.order)).limit(1);
 
-		console.log(latestGP);
 		const newGrandPrix = await db
 			.insert(grandPrix)
 			.values({ order: (latestGP[0]?.order ?? -1) + 1, participants })
 			.returning();
-
-		console.log(newGrandPrix);
 
 		if (!newGrandPrix?.[0]) {
 			return json({ error: 'Failed to create grand Prix' }, { status: 500 });

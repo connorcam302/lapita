@@ -10,8 +10,6 @@
 		value,
 		...restProps
 	}: WithoutChildrenOrChild<ProgressPrimitive.RootProps> = $props();
-
-	console.log(indicatorColour);
 </script>
 
 <ProgressPrimitive.Root

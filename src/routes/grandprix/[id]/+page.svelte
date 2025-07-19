@@ -91,7 +91,6 @@
 				};
 			});
 
-			console.log(userData);
 
 			const average = userData.reduce((acc, user) => acc + user.average, 0);
 			const lastFiveAverage = userData.reduce((acc, user) => acc + (user.lastFiveAverage ?? 0), 0);
@@ -163,7 +162,17 @@
 			finishPosition = '';
 			subscription.send({
 				type: 'broadcast',
-				event: 'new-result'
+				event: 'new-result',
+				payload: {
+					id: selectedRaceId,
+					userId: selectedUserId,
+					name: selectedUser.name,
+					position: finishPosition,
+					trackStartId: selectedRace?.trackStartId,
+					trackEndId: selectedRace?.trackEndId,
+					kartId: selectedKartId,
+					characterId: selectedCharacterId
+				}
 			});
 			const currentRaceIndex = raceResults.findIndex((race) => race.id === Number(selectedRaceId));
 			selectedRaceId = raceResults[currentRaceIndex + 1].id;
