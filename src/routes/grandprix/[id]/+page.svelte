@@ -18,7 +18,7 @@
 		addNumberSuffix,
 		getPositionColour,
 		calculateConsistency,
-		getConsistencyColorGradient,
+		getConsistencyColorGradient
 	} from '$lib/utils';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
@@ -91,7 +91,6 @@
 				};
 			});
 
-
 			const average = userData.reduce((acc, user) => acc + user.average, 0);
 			const lastFiveAverage = userData.reduce((acc, user) => acc + (user.lastFiveAverage ?? 0), 0);
 			const bestResult = userData.reduce((acc, user) => acc + (user.bestResult ?? 0), 0);
@@ -115,8 +114,6 @@
 				race.trackId === selectedRace?.trackStartId && race.trackId === selectedRace?.trackEndId
 		)
 	);
-
-	$inspect(selectedRaceAveragesData);
 
 	let tableColours = $state(page.url.searchParams.get('results-view') || 'medals');
 

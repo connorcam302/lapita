@@ -3,41 +3,18 @@ import { users } from '$lib/server/db/schema';
 import { asc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { getAllGpStandings } from '$lib/server/serverUtils';
+import { getAllUsers } from '../convex/users';
+import { query } from '../convex/_generated/server';
+import { ConvexClient } from 'convex/browser';
+import { PUBLIC_CONVEX_URL } from '$env/static/public';
+import { api } from '../convex/_generated/api';
 
 export const load: PageServerLoad = async () => {
-	const leaderboard = {
-		gpId: 1,
-		standings: [
-			{
-				position: 1,
-				username: 'Tom',
-				character: 'Wiggler',
-				score: 185
-			},
-			{
-				position: 2,
-				username: 'Connor',
-				character: 'Mario',
-				score: 183
-			},
-			{
-				position: 3,
-				username: 'Callum',
-				character: 'Peach',
-				score: 164
-			},
-			{
-				position: 4,
-				username: 'Matthew',
-				character: 'Bowser',
-				score: 163
-			}
-		]
-	};
+	const client = new ConvexClient(PUBLIC_CONVEX_URL);
 
-	const allGpResults = await getAllGpStandings();
+	const allGpResults = null;
 
-	const playerList = await db.select().from(users).orderBy(asc(users.name));
+	const playerList = await client.query(api.users.getAllUsers, {});
 
-	return { leaderboard, playerList, allGpResults };
+	return { playerList, allGpResults };
 };

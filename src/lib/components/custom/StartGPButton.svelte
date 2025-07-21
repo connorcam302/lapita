@@ -30,7 +30,7 @@
 	};
 
 	const addAllUsers = () => {
-		userList = playerList.map(({ id }) => id);
+		userList = playerList.map(({ _id }) => _id);
 	};
 
 	const createGP = async () => {
@@ -47,6 +47,8 @@
 			goto(`/grandprix/${id}`);
 		}
 	};
+
+	console.log(playerList);
 </script>
 
 <Sheet.Root>
@@ -78,11 +80,11 @@
 			</div>
 			<ScrollArea class="max-h-[600px]">
 				<div class="flex flex-col gap-2 pr-2">
-					{#each playerList as { id, name }, i (i)}
-						{#if userList.includes(id)}
+					{#each playerList as { _id, name }, i (i)}
+						{#if userList.includes(_id)}
 							<Card.Root
 								class="border-lapita bg-lapita/10 cursor-pointer"
-								onclick={() => handleUserChange(id)}
+								onclick={() => handleUserChange(_id)}
 							>
 								<Card.Header>
 									<Card.Title>{name}</Card.Title>
@@ -91,7 +93,7 @@
 						{:else}
 							<Card.Root
 								class="hover:bg-lapita/10 cursor-pointer"
-								onclick={() => handleUserChange(id)}
+								onclick={() => handleUserChange(_id)}
 							>
 								<Card.Header>
 									<Card.Title>{name}</Card.Title>

@@ -5,40 +5,46 @@
 	import StartGPButton from '$lib/components/custom/StartGPButton.svelte';
 	import type { PageData } from './$types';
 	import Header from './Header.svelte';
+	import { api } from '../convex/_generated/api';
+	import { useQuery } from 'convex-svelte';
+	import { fade } from 'svelte/transition';
+	import { cubicIn, cubicInOut } from 'svelte/easing';
 
 	const { data }: { data: PageData } = $props();
 
-	let { playerList, allGpResults } = data;
+	let playerList = useQuery(api.users.getAllUsers, {});
+
+	let loading = $derived([playerList].some((loader) => loader.isLoading));
+	let errors = $derived([playerList].map(({ error }) => error).filter((error) => error));
+
+	$inspect(playerList);
+	$inspect(loading, errors);
 </script>
 
-<Header />
-<div class="mx-auto flex max-w-3xl flex-col items-center gap-2 px-2 py-8">
-	<StartGPButton {playerList} />
-	<div class="flex w-full flex-col gap-2">
-		{#each allGpResults as gpResult (gpResult.id)}
-			<a href="/grandprix/{gpResult.id}">
-				<Card.Root class="w-full">
-					<Card.Header>
-						<Card.Title>Grand Prix {gpResult.order}</Card.Title>
-					</Card.Header>
-					<Card.Content class="flex gap-4">
-						{#each gpResult.standings as standing, i (i)}
-							<div class="flex w-28 justify-between">
-								<div class="flex flex-col gap-1">
-									<div class="text-lg font-medium">{i + 1}. {standing.username}</div>
-									<div class="flex items-center gap-4">
-										<div>{standing.score}</div>
-										{#if i !== 0}
-											<div class="text-sm text-red-500">(-{gpResult.standings[i - 1].score})</div>
-										{/if}
-									</div>
-								</div>
-								<Separator orientation="vertical" />
-							</div>
-						{/each}
-					</Card.Content>
-				</Card.Root>
-			</a>
-		{/each}
-	</div>
+<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
+	{#if loading}
+		<div class="flex h-dvh items-center justify-center">
+			<img src="/lapita-logo.png" class="w-48 animate-bounce" alt="lapita-logo" />
+		</div>
+	{:else}
+		{#if errors.length}
+			<div>Something went wrong. Looks like this:</div>
+			<div class="flex flex-col gap-8">
+				{#each errors as error}
+					<div class="flex flex-col gap-2">
+						<div class="font-medium">{error!.name}</div>
+						<div class="text-sm">{error!.message}</div>
+						<div class="text-sm">{error!.cause}</div>
+						<div class="text-sm">{error!.stack}</div>
+					</div>
+				{/each}
+			</div>
+		{:else}{/if}
+		<div>
+			<Header />
+			<div class="mx-auto flex max-w-3xl flex-col items-center gap-2 px-2 py-8">
+				<StartGPButton playerList={playerList.data} />
+			</div>
+		</div>
+	{/if}
 </div>
