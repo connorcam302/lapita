@@ -68,6 +68,8 @@ export const rgbToHex = (rgbString: string) => {
 	// Extract numbers from rgb string using regex
 	const match = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
 
+	console.log(rgbString);
+
 	if (!match) {
 		throw new Error('Invalid RGB string format');
 	}
@@ -106,6 +108,7 @@ export const getPositionColour = (position: number): string => {
 };
 
 export const calculateConsistency = (positions: number[]) => {
+	positions = positions.filter((num) => !Number.isNaN(num));
 	if (positions.length < 2) return 1;
 
 	const avg = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
@@ -120,20 +123,36 @@ export const calculateConsistency = (positions: number[]) => {
 };
 
 export const getConsistencyColorGradient = (consistency: number) => {
-	const value = Math.max(0, Math.min(1, consistency));
+	// Clamp consistency between 0 and 1
+	consistency = Math.min(1, Math.max(0, consistency));
 
-	if (value >= 0.7) {
-		// Green range (70-100%)
-		const greenIntensity = Math.round(255 * ((value - 0.7) / 0.3));
-		return rgbToHex(
-			`rgb(${Math.max(0, 255 - greenIntensity)}, 255, ${Math.max(0, 255 - greenIntensity)})`
-		);
-	} else if (value >= 0.4) {
-		// Yellow range (40-70%)
-		return rgbToHex(`rgb(255, ${Math.round(255 * ((value - 0.4) / 0.3))}, 0)`);
-	} else {
-		// Red range (0-40%)
-		const redIntensity = Math.round(255 * (value / 0.4));
-		return rgbToHex(`rgb(255, ${redIntensity}, ${redIntensity})`);
+	// Define gradient stops
+	const gradient = [
+		{ stop: 0.0, color: [255, 0, 0] }, // Red
+		{ stop: 0.25, color: [255, 128, 0] }, // Orange
+		{ stop: 0.5, color: [255, 255, 0] }, // Yellow
+		{ stop: 0.75, color: [128, 255, 0] }, // Light Green
+		{ stop: 1.0, color: [0, 128, 0] } // Dark Green
+	];
+
+	// Find the two stops this consistency is between
+	for (let i = 0; i < gradient.length - 1; i++) {
+		const left = gradient[i];
+		const right = gradient[i + 1];
+
+		if (consistency >= left.stop && consistency <= right.stop) {
+			// Interpolate between left.color and right.color
+			const range = right.stop - left.stop;
+			const rangeconsistency = (consistency - left.stop) / range;
+
+			const r = Math.round(left.color[0] + (right.color[0] - left.color[0]) * rangeconsistency);
+			const g = Math.round(left.color[1] + (right.color[1] - left.color[1]) * rangeconsistency);
+			const b = Math.round(left.color[2] + (right.color[2] - left.color[2]) * rangeconsistency);
+
+			return `rgb(${r}, ${g}, ${b})`;
+		}
 	}
+
+	// Should not reach here, but fallback
+	return 'rgb(0, 128, 0)';
 };
