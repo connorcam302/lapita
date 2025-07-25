@@ -12,6 +12,7 @@
 	import { convexStore } from '$lib/stores/states.svelte';
 	import { fade } from 'svelte/transition';
 	import { cubicIn } from 'svelte/easing';
+	import { page } from '$app/state';
 	$inspect(convexStore.isLoaded);
 </script>
 
@@ -21,10 +22,14 @@
 <Navbar />
 
 <div transition:fade|global={{ duration: 500, easing: cubicIn }}>
-	{#if convexStore.isLoaded}
-		<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
+	{#if convexStore.isLoaded || page.error}
+		{#if page.error}
 			{@render children?.()}
-		</div>
+		{:else}
+			<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
+				{@render children?.()}
+			</div>
+		{/if}
 	{:else}
 		<div
 			class="flex h-dvh items-center justify-center"
