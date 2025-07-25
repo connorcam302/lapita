@@ -8,10 +8,13 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import { goto } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
+	import { api } from '../../../convex/_generated/api';
+	import { useConvexClient } from 'convex-svelte';
 
 	const { playerList } = $props();
 
-	let userList = $state([]);
+	let userList: number[] = $state([]);
 
 	const adduser = (id: number) => {
 		userList.push(id);
@@ -33,22 +36,17 @@
 		userList = playerList.map(({ _id }) => _id);
 	};
 
+	const client = useConvexClient();
+
 	const createGP = async () => {
-		const res = await fetch('/api/grandprix/new', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ participants: userList })
-		});
-
-		if (res.ok) {
-			const { id } = await res.json();
-			goto(`/grandprix/${id}`);
+		if (userList.length < 4) {
+			toast.error('Please select at least 4 users');
+			return;
 		}
-	};
+		const newGpId = await client.mutation(api.gps.newGp, { participants: userList });
 
-	console.log(playerList);
+		goto(`/grandprix/${newGpId}`);
+	};
 </script>
 
 <Sheet.Root>

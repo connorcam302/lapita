@@ -10,7 +10,7 @@ export const valid = query({
 });
 
 export const all = query({
-	handler(ctx) {
+	handler: async (ctx) => {
 		return ctx.db.query('tracks').collect();
 	}
 });

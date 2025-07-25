@@ -44,6 +44,7 @@ export const getRaceResultsByGpId = async (gpId: string | number) => {
 			results: racesForOrder
 				.map((result) => {
 					const points = placementToPoints[result.results.position || 0] || 0;
+					placementToPoints;
 					cumulativePoints[result.results.userId] =
 						(cumulativePoints[result.results.userId] || 0) + points;
 					return {
@@ -98,38 +99,43 @@ export const getAveragePositionsByTracksLastFive = async (
 	userIds: number[],
 	trackIds: string[]
 ) => {
-const lastFiveRacesSubquery = db.$with('latest_races').as(
-    db
-        .select({
-            id: races.id,
-            userId: results.userId,
-            trackId: races.trackStartId,
-            order: races.order,
-            rn: sql<number>`row_number() OVER (PARTITION BY ${results.userId}, ${races.trackStartId} ORDER BY ${races.order} DESC)`.as('rn')
-        })
-        .from(results)
-        .innerJoin(races, eq(results.raceId, races.id))
-        .where(and(inArray(races.trackStartId, trackIds), inArray(results.userId, userIds)))
-);
+	const lastFiveRacesSubquery = db.$with('latest_races').as(
+		db
+			.select({
+				id: races.id,
+				userId: results.userId,
+				trackId: races.trackStartId,
+				order: races.order,
+				rn: sql<number>`row_number() OVER (PARTITION BY ${results.userId}, ${races.trackStartId} ORDER BY ${races.order} DESC)`.as(
+					'rn'
+				)
+			})
+			.from(results)
+			.innerJoin(races, eq(results.raceId, races.id))
+			.where(and(inArray(races.trackStartId, trackIds), inArray(results.userId, userIds)))
+	);
 
-return await db
-    .with(lastFiveRacesSubquery)
-    .select({
-        userId: results.userId,
-        name: users.name,
-        trackId: races.trackStartId,
-        positions: sql<number>`array_agg(${results.position} ORDER BY ${races.order} DESC)`,
-        avgPosition: avg(results.position).as('avgPosition')
-    })
-    .from(results)
-    .innerJoin(lastFiveRacesSubquery, and(
-        eq(results.raceId, lastFiveRacesSubquery.id),
-        eq(results.userId, lastFiveRacesSubquery.userId)  // This is the key addition
-    ))
-    .innerJoin(users, eq(results.userId, users.id))
-    .innerJoin(races, eq(results.raceId, races.id))
-    .where(lte(lastFiveRacesSubquery.rn, 5))
-    .groupBy(results.userId, races.trackStartId, users.name);
+	return await db
+		.with(lastFiveRacesSubquery)
+		.select({
+			userId: results.userId,
+			name: users.name,
+			trackId: races.trackStartId,
+			positions: sql<number>`array_agg(${results.position} ORDER BY ${races.order} DESC)`,
+			avgPosition: avg(results.position).as('avgPosition')
+		})
+		.from(results)
+		.innerJoin(
+			lastFiveRacesSubquery,
+			and(
+				eq(results.raceId, lastFiveRacesSubquery.id),
+				eq(results.userId, lastFiveRacesSubquery.userId) // This is the key addition
+			)
+		)
+		.innerJoin(users, eq(results.userId, users.id))
+		.innerJoin(races, eq(results.raceId, races.id))
+		.where(lte(lastFiveRacesSubquery.rn, 5))
+		.groupBy(results.userId, races.trackStartId, users.name);
 };
 
 export const getBestPositionsByTracks = async (userIds: number[], trackIds: string[]) => {
@@ -189,73 +195,4 @@ export const getAveragePositionsByTracks = async (userIds: number[], trackIds: s
 			)
 		)
 		.groupBy(results.userId, races.trackStartId, users.name);
-};
-
-export const calculateRaceWinChance = (trackAverages, recentRaces = [], formWeight = 0.3) => {
-	const trackList = Array.from(new Set(trackAverages.map((track) => track.trackId)));
-
-	return trackList.map((trackId) => {
-		const averageForTrack = trackAverages.filter((track) => track.trackId === trackId);
-
-		const usersByWeight = averageForTrack.map((user) => {
-			const avgPosition = parseFloat(user.avg);
-
-			// Base weight from historical average (aggressive approach)
-			const baseWeight = Math.pow(12 / avgPosition, 2);
-
-			// Calculate form factor from recent races
-			const userRecentRaces = recentRaces.filter((race) => race.userId === user.userId);
-			let formFactor = 1.0; // Neutral form
-
-			if (userRecentRaces.length > 0) {
-				// Get average of recent positions (lower is better)
-				const recentAvg =
-					userRecentRaces.reduce((sum, race) => sum + race.position, 0) / userRecentRaces.length;
-
-				// Compare recent form to historical average
-				const formDifference = avgPosition - recentAvg;
-
-				// Form factor: positive difference = good form, negative = bad form
-				// Scale: each position better/worse = ±15% change
-				formFactor = 1 + formDifference * 0.15;
-
-				// Cap form factor between 0.5 and 2.0 to prevent extreme swings
-				formFactor = Math.max(0.5, Math.min(2.0, formFactor));
-			}
-
-			// Combine base weight with form
-			const finalWeight = baseWeight * (1 - formWeight + formWeight * formFactor);
-
-			return {
-				...user,
-				average: avgPosition,
-				recentForm:
-					userRecentRaces.length > 0
-						? userRecentRaces.reduce((sum, race) => sum + race.position, 0) / userRecentRaces.length
-						: null,
-				formFactor: formFactor,
-				baseWeight: baseWeight,
-				finalWeight: finalWeight
-			};
-		});
-
-		// Sort by final weight (highest first)
-		usersByWeight.sort((a, b) => b.finalWeight - a.finalWeight);
-
-		const totalWeight = usersByWeight.reduce((acc, val) => acc + val.finalWeight, 0);
-
-		return {
-			trackId,
-			trackName: allTracks.find((track) => track.id === trackId).name,
-			data: usersByWeight.map((user, index) => {
-				const chance = (user.finalWeight / totalWeight) * 100;
-				return {
-					user,
-					formFactor: Math.round(user.formFactor * 100) / 100,
-					rankPosition: index + 1,
-					chance: Math.round(chance * 100) / 100
-				};
-			})
-		};
-	});
 };

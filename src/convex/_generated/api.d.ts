@@ -8,8 +8,14 @@
  * @module
  */
 
+import type * as characters from "../characters.js";
 import type * as gps from "../gps.js";
+import type * as karts from "../karts.js";
 import type * as migrations from "../migrations.js";
+import type * as races from "../races.js";
+import type * as results from "../results.js";
+import type * as standings from "../standings.js";
+import type * as tracks from "../tracks.js";
 import type * as users from "../users.js";
 
 import type {
@@ -27,8 +33,14 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  characters: typeof characters;
   gps: typeof gps;
+  karts: typeof karts;
   migrations: typeof migrations;
+  races: typeof races;
+  results: typeof results;
+  standings: typeof standings;
+  tracks: typeof tracks;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

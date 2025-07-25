@@ -11,14 +11,18 @@
 	import MoveRightIcon from '@lucide/svelte/icons/move-right';
 	import MoveUpRightIcon from '@lucide/svelte/icons/trending-up';
 	import MoveDownRightIcon from '@lucide/svelte/icons/trending-down';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, getContext } from 'svelte';
 	import { supabase } from '$lib/supabaseClient';
 	import { toast } from 'svelte-sonner';
 	import {
 		addNumberSuffix,
 		getPositionColour,
 		calculateConsistency,
-		getConsistencyColorGradient
+		getConsistencyColorGradient,
+		getCharacterName,
+		getTrackName,
+		getKartName,
+		getPlayerName
 	} from '$lib/utils';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
@@ -32,454 +36,440 @@
 	import MoveDownRight from '@lucide/svelte/icons/move-down-right';
 	import MoveUpRight from '@lucide/svelte/icons/move-up-right';
 	import { Progress } from '$lib/components/ui/progress/index.ts';
+	import { api } from '../../../convex/_generated/api';
+	import { useConvexClient, useQuery } from 'convex-svelte';
+	import type { Id } from '../../../convex/_generated/dataModel';
+	import { allCharacters, allKarts, allTracks, allUsers } from '$lib/stores/states.svelte';
+	import { fade } from 'svelte/transition';
+	import { cubicIn } from 'svelte/easing';
 
 	const { data }: { data: PageData } = $props();
-	console.log(data);
+	const client = useConvexClient();
 
 	let tab = $state('results');
 
-	let {
-		grandPrixDetails,
-		initialRaceResults,
-		userList,
-		characterList,
-		kartList,
-		winChances,
-		trackAverages
-	} = data;
+	let { grandPrixDetails } = data;
 
-	let raceResults = $state(initialRaceResults);
-	let selectedCharacterId = $state(page.url.searchParams.get('character') || characterList[0].id);
-	let selectedCharacter = $derived(characterList.find((char) => char.id === selectedCharacterId));
-	let selectedKartId = $state(page.url.searchParams.get('kart') || kartList[0].id);
-	let selectedKart = $derived(kartList.find((kart) => kart.id === selectedKartId));
-	let selectedUserId = $state(page.url.searchParams.get('racer') || userList[0].id);
-	let selectedUser = $derived(userList.find((racer) => racer.id === Number(selectedUserId)));
-	let selectedRaceId = $state(page.url.searchParams.get('track') || raceResults[0].id);
-	let selectedRace = $derived(raceResults.find((track) => track.id === Number(selectedRaceId)));
-	let selectedRaceWinChance = $derived(
-		winChances.find(
-			(race) =>
-				race.trackId === selectedRace?.trackStartId && race.trackId === selectedRace?.trackEndId
-		) ?? undefined
+	let kartList = $derived(allKarts);
+	let characterList = $derived(allCharacters);
+	let playerList = $derived(allUsers);
+	let trackList = $derived(allTracks);
+
+	if ([grandPrixDetails, playerList, characterList, kartList].includes(null)) {
+		throw new Error(
+			JSON.stringify({
+				grandPrixDetails: grandPrixDetails ? true : false,
+				playerList: playerList ? true : false,
+				characterList: characterList ? true : false,
+				kartList: kartList ? true : false
+			})
+		);
+	}
+
+	let raceList = $derived(
+		useQuery(api.races.inGrandPrix, { grandPrixId: grandPrixDetails!._id as Id<'grandPrix'> })
+	);
+	let standings = $derived(
+		useQuery(api.standings.getOne, {
+			grandPrixId: grandPrixDetails!._id as Id<'grandPrix'>
+		})
 	);
 
-	const transformAverages = (averages) => {
-		const result = [];
+	let selectedCharacterId = $derived(
+		characterList &&
+			((localStorage.getItem('selectedCharacterId') ?? characterList[0]._id) as Id<'characters'>)
+	);
+	let selectedCharacter = $derived(
+		characterList?.find((char) => char._id === (selectedCharacterId as Id<'characters'>))
+	);
+	let selectedKartId = $derived(
+		kartList && ((localStorage.getItem('selectedKartId') ?? kartList[0]._id) as Id<'karts'>)
+	);
+	let selectedKart = $derived(
+		kartList?.find((kart) => kart._id === (selectedKartId as Id<'karts'>))
+	);
+	let selectedUserId = $derived(
+		playerList && ((localStorage.getItem('selectedUserId') ?? playerList[0]!._id) as Id<'users'>)
+	);
+	let selectedUser = $derived(
+		playerList?.find((racer) => racer._id === (selectedUserId as Id<'users'>))
+	);
+	let selectedRaceId = $derived(
+		!raceList.isLoading &&
+			((page.url.searchParams.get('track') || raceList?.data[0]!._id) as Id<'races'>)
+	);
 
-		// Use averages as the base since it has the most complete data
-		averages.averages.forEach((track) => {
-			const trackId = track.trackId;
+	let selectedRace = $derived(
+		!raceList.isLoading ? raceList?.data?.find((track) => track._id === selectedRaceId) : null
+	);
 
-			// Find corresponding data in lastFiveResults and bestResults
-			const lastFiveData = averages.lastFiveResults.find((t) => t.trackId === trackId);
-			const bestData = averages.bestResults.find((t) => t.trackId === trackId);
+	let stats = $derived(
+		!raceList.isLoading &&
+			useQuery(api.results.stats, {
+				tracks: raceList.data.map((race) => race.trackEndId),
+				users: grandPrixDetails.participants
+			})
+	);
 
-			// Transform the data for each user
-			const userData = track.data.map((user) => {
-				// Find corresponding user data in lastFiveResults and bestResults
-				const lastFiveUser = lastFiveData?.data.find((u) => u.userId === user.userId);
-				const bestUser = bestData?.data.find((u) => u.userId === user.userId);
+	//$inspect(stats);
 
-				return {
-					userId: user.userId,
-					name: user.name,
-					lastFiveAverage: lastFiveUser ? parseFloat(lastFiveUser.avgPosition) : null,
-					lastFiveResults: lastFiveUser ? lastFiveUser.positions : null,
-					bestResult: bestUser ? bestUser.position : null,
-					average: parseFloat(user.avg)
-				};
-			});
-
-			const average = userData.reduce((acc, user) => acc + user.average, 0);
-			const lastFiveAverage = userData.reduce((acc, user) => acc + (user.lastFiveAverage ?? 0), 0);
-			const bestResult = userData.reduce((acc, user) => acc + (user.bestResult ?? 0), 0);
-
-			result.push({
-				trackId: trackId,
-				average: average / userData.length,
-				lastFiveAverage: lastFiveAverage / userData.length,
-				lastFiveResults: userData.lastFiveResults,
-				bestResult: bestResult / userData.length,
-				data: userData
-			});
-		});
-
-		return result;
-	};
-
-	const selectedRaceAveragesData = $derived(
-		transformAverages(trackAverages).find(
-			(race) =>
-				race.trackId === selectedRace?.trackStartId && race.trackId === selectedRace?.trackEndId
-		)
+	let selectedRaceStats = $derived(
+		stats && !stats.isLoading && selectedRaceId
+			? stats.data.find((stat) => {
+					return stat.trackId === selectedRace?.trackEndId;
+				})
+			: undefined
 	);
 
 	let tableColours = $state(page.url.searchParams.get('results-view') || 'medals');
 
-	const getLatestRace = (races: any[]) => {
-		for (let i = races.length - 1; i >= 0; i--) {
-			const race = races[i];
-			if (race.results.slice().some((r) => r.position !== null)) {
-				return race;
-			}
-		}
-		return races[0];
-	};
-
-	// Remove the redundant $effect block completely
-	let latestRace = $derived(getLatestRace(raceResults));
-	$effect(() => {
-		latestRace = getLatestRace(raceResults);
-	});
-
 	let finishPosition = $state('');
 
-	const uploadRaceResults = async () => {
+	const resultsTable = $derived(
+		!raceList.isLoading && useQuery(api.results.get, { grandPrixId: grandPrixDetails?._id })
+	);
+
+	$effect(() => {
+		if (!selectedRaceId) return;
+		goto(`/grandprix/${grandPrixDetails?._id}?track=${selectedRaceId}`, { noScroll: true });
+	});
+
+	$effect(() => {
+		selectedCharacterId && localStorage.setItem('selectedCharacterId', selectedCharacterId);
+	});
+	$effect(() => {
+		selectedKartId && localStorage.setItem('selectedKartId', selectedKartId);
+	});
+	$effect(() => {
+		selectedUserId && localStorage.setItem('selectedUserId', selectedUserId);
+	});
+	$effect(() => {
+		tableColours && localStorage.setItem('tableColours', tableColours);
+	});
+
+	const submitRaceResults = () => {
+		if (
+			!grandPrixDetails._id ||
+			!selectedRaceId ||
+			!selectedUserId ||
+			!selectedKartId ||
+			!selectedCharacterId
+		)
+			return toast.error('Something went wrong', {
+				description: 'Try again in a few seconds. Refresh if error persists.'
+			});
 		if (!finishPosition) {
 			return toast.error('Missing fields', {
 				description: 'Please fill out finish position.'
 			});
 		}
-
-		const res = await fetch('/api/race/' + selectedRaceId, {
-			method: 'POST',
-			body: JSON.stringify({
+		client
+			.mutation(api.results.update, {
+				grandPrixId: grandPrixDetails?._id,
+				raceId: selectedRaceId,
+				position: Number(finishPosition),
 				userId: selectedUserId,
-				characterId: selectedCharacterId,
 				kartId: selectedKartId,
-				position: finishPosition
+				characterId: selectedCharacterId
 			})
-		});
-
-		if (res.ok) {
-			toast.success('Uploaded Result', {
-				description: `${selectedUser.name} finished ${addNumberSuffix(finishPosition)} in ${selectedRace?.startTrackName}`
-			});
-			finishPosition = '';
-			subscription.send({
-				type: 'broadcast',
-				event: 'new-result',
-				payload: {
-					id: selectedRaceId,
-					userId: selectedUserId,
-					name: selectedUser.name,
-					position: finishPosition,
-					trackStartId: selectedRace?.trackStartId,
-					trackEndId: selectedRace?.trackEndId,
-					kartId: selectedKartId,
-					characterId: selectedCharacterId
+			.then((res) => {
+				if (res?.status === 'Ok') {
+					return toast.success('Uploaded Result', {
+						description: `Result successfully uploaded.`
+					});
+				} else {
+					return toast.error('Something went wrong', {
+						description: 'Try again in a few seconds. Refresh if error persists.'
+					});
 				}
 			});
-			const currentRaceIndex = raceResults.findIndex((race) => race.id === Number(selectedRaceId));
-			selectedRaceId = raceResults[currentRaceIndex + 1].id;
-		} else {
-			toast.error('Failed to upload result', {
-				description: 'Please try again.'
-			});
-		}
 	};
 
-	let subscription;
+	$inspect(selectedRaceStats);
 
-	const updateResults = async () => {
-		await fetch('/api/grandprix/' + grandPrixDetails.id)
-			.then((res) => res.json())
-			.then((data) => (raceResults = data));
-	};
-
-	onMount(async () => {
-		subscription = supabase
-			.channel('results-update')
-			.on(
-				'broadcast',
-				{
-					event: 'new-result'
-				},
-				(payload) => {
-					console.log(payload);
-					updateResults();
-				}
-			)
-			.subscribe();
-	});
-
-	onDestroy(() => {
-		if (subscription) {
-			subscription.unsubscribe();
-		}
-	});
-
-	$effect(() => {
-		goto(
-			`/grandprix/${grandPrixDetails.id}/?racer=${selectedUserId}&character=${selectedCharacterId}&track=${selectedRaceId}&kart=${selectedKartId}&results-view=${tableColours}`,
-			{ noScroll: true }
-		);
-	});
-
-	$effect(() => {
-		console.log(selectedRaceWinChance);
-	});
+	let initialLoading = $derived(
+		raceList.isLoading || standings.isLoading || resultsTable.isLoading || !selectedRaceStats
+	);
+	let errors = $derived(
+		[raceList, standings, resultsTable].map(({ error }) => error).filter((error) => error)
+	);
 </script>
 
-<div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
-	<Card.Root>
-		<Card.Header>
-			<div class="flex justify-between">
-				<div class="flex items-center">
-					<Dialog.Root>
-						<Dialog.Trigger>
-							<img
-								src={`/tracks/icons/${selectedRace?.trackStartId}.png`}
-								alt={selectedRace?.startTrackName}
-								class="h-24 hover:cursor-pointer"
-							/>
-						</Dialog.Trigger>
-						<Dialog.Content class="md:min-w-4xl">
-							<Dialog.Title>{selectedRace?.startTrackName}</Dialog.Title>
-							<Dialog.Description>
-								<img
-									src={`/tracks/locations/${selectedRace?.trackStartId}.jpg`}
-									alt={selectedRace?.startTrackName}
-									class="min-w-full"
-								/>
-							</Dialog.Description>
-						</Dialog.Content>
-					</Dialog.Root>
-					<div class="flex flex-col gap-1.5">
-						<div class="flex items-center gap-2 leading-none font-semibold">
-							<div class="text-4xl">{selectedRace?.startTrackName}</div>
-							{#if selectedRace?.startTrackName !== selectedRace?.endTrackName}
-								<div><MoveRightIcon /></div>
-								<div>{selectedRace?.endTrackName}</div>
-							{/if}
-						</div>
-						<div class="text-muted-foreground text-sm">
-							Race {selectedRace?.order + 1} of Grand Prix {grandPrixDetails.order}.
-						</div>
-					</div>
-				</div>
-				<EditTrackButton originalTrack={selectedRace} />
-			</div>
-		</Card.Header>
-		<Card.Content>
-			<div class="flex flex-col gap-8">
-				<Separator orientation="horizontal" />
+<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
+	{#if initialLoading}
+		<div class="flex h-dvh items-center justify-center">
+			<img src="/lapita-logo.png" class="w-48 animate-bounce" alt="lapita-logo" />
+		</div>
+	{:else if errors.length}
+		<div>Something went wrong. Looks like this:</div>
+		<div class="flex flex-col gap-8">
+			{#each errors as error}
 				<div class="flex flex-col gap-2">
-					<div class="flex flex-col gap-1.5">
-						<div class="flex items-center gap-2 leading-none font-semibold">Average Placement</div>
-						<div class="text-muted-foreground text-sm">
-							Average placement to 2 d.p on <b>{selectedRace?.startTrackName}</b>
+					<div class="font-medium">{error!.name}</div>
+					<div class="text-sm">{error!.message}</div>
+					<div class="text-sm">{error!.cause}</div>
+					<div class="text-sm">{error!.stack}</div>
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
+			<Card.Root>
+				<Card.Header>
+					<div class="flex justify-between">
+						<div class="flex items-center">
+							<Dialog.Root>
+								<Dialog.Trigger>
+									<img
+										src={`/tracks/icons/${trackList.find((track) => track._id === selectedRace?.trackStartId)?.img}.png`}
+										alt={trackList.find((track) => track._id === selectedRace?.trackStartId)?.name}
+										class="h-24 hover:cursor-pointer"
+									/>
+								</Dialog.Trigger>
+								<Dialog.Content class="md:min-w-4xl">
+									<Dialog.Title>{getTrackName(trackList, selectedRace.trackStartId)}</Dialog.Title>
+									<Dialog.Description>
+										<img
+											src={`/tracks/locations/${trackList.find((track) => track._id === selectedRace?.trackStartId)?.img}.jpg`}
+											alt={selectedRace?.startTrackName}
+											class="min-w-full"
+										/>
+									</Dialog.Description>
+								</Dialog.Content>
+							</Dialog.Root>
+							<div class="flex flex-col gap-1.5">
+								<div class="flex items-center gap-2 leading-none font-semibold">
+									<div class="text-4xl">{getTrackName(trackList, selectedRace.trackStartId)}</div>
+									{#if selectedRace?.trackStartId !== selectedRace?.trackEndId}
+										<div><MoveRightIcon /></div>
+										<div>{getTrackName(trackList, selectedRace.trackEndId)}</div>
+									{/if}
+								</div>
+								<div class="text-muted-foreground text-sm">
+									Race {selectedRace?.order + 1} of Grand Prix {grandPrixDetails?.order}.
+								</div>
+							</div>
+						</div>
+						<EditTrackButton race={selectedRace} />
+					</div>
+				</Card.Header>
+				<Card.Content>
+					<div class="flex flex-col gap-8">
+						<div class="flex flex-col gap-2">
+							<div class="flex flex-col gap-1.5">
+								<div class="flex items-center gap-2 leading-none font-semibold">
+									Average Placement
+								</div>
+								<div class="text-muted-foreground text-sm">
+									Average placement to 2 d.p on <b
+										>{getTrackName(trackList, selectedRace?.trackEndId)}</b
+									>
+								</div>
+							</div>
+							<Table.Root>
+								<Table.Header>
+									<Table.Row>
+										<Table.Head class="w-20 md:w-32">Racer</Table.Head>
+										<Table.Head class="w-32 text-center">Average</Table.Head>
+										<Table.Head class="w-32 text-center">Last 5</Table.Head>
+										<Table.Head class="w-24 text-center">Trend</Table.Head>
+										<Table.Head class="w-48 text-center">Consistency</Table.Head>
+									</Table.Row>
+								</Table.Header>
+								<Table.Body>
+									{#each selectedRaceStats.stats as { userId, bestResult, avg, lastFiveResults }, i (i)}
+										{@const name = getPlayerName(playerList, userId)}
+										{@const lastFiveAverage =
+											lastFiveResults.reduce((a, b) => a + b, 0) / lastFiveResults.length}
+										<Table.Row>
+											<Table.Cell class="font-medium">{name}</Table.Cell>
+											<Table.Cell class="flex items-center justify-center text-center text-black">
+												<div
+													class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
+													style="background-color: {getPositionColour(avg)}"
+												>
+													{(avg ?? 0).toFixed(2) || '-'}
+												</div></Table.Cell
+											>
+											<Table.Cell class="w-44 py-0 text-center text-black">
+												<div class="flex h-full items-center justify-center gap-2">
+													{#each lastFiveResults as result}
+														<div
+															class="flex h-8 w-8 items-center justify-center rounded-sm text-center text-black"
+															style="background-color: {getPositionColour(result)}"
+														>
+															{result}
+														</div>
+													{/each}
+												</div>
+											</Table.Cell>
+
+											<Table.Cell class="w-44 py-0 text-center text-black">
+												{@const trend = avg - lastFiveAverage}
+												{#if trend > 0.5}
+													<div class="flex items-center justify-center gap-2 text-green-600">
+														<MoveUpRightIcon />+{trend.toFixed(1)}
+													</div>
+												{:else if trend < -0.5}
+													<div class="flex items-center justify-center gap-2 text-red-600">
+														<MoveDownRightIcon />{trend.toFixed(1)}
+													</div>
+												{:else if trend >= 0}
+													<div class="flex items-center justify-center gap-2 text-yellow-500">
+														<MoveRightIcon />+{trend.toFixed(1)}
+													</div>
+												{:else if trend <= 0}
+													<div class="flex items-center justify-center gap-2 text-yellow-400">
+														<MoveRightIcon />{trend.toFixed(1)}
+													</div>
+												{/if}
+											</Table.Cell>
+											<Table.Cell class="text-center text-white">
+												<Progress
+													value={calculateConsistency(lastFiveResults) * 100}
+													class="bg-neutral-800"
+													indicatorColour={getConsistencyColorGradient(
+														calculateConsistency(lastFiveResults)
+													)}
+												/>
+											</Table.Cell>
+										</Table.Row>
+									{/each}
+								</Table.Body>
+							</Table.Root>
+						</div>
+						<Separator orientation="horizontal" />
+						<RaceWinChanceChart data={selectedRaceStats?.chances} />
+					</div>
+				</Card.Content>
+			</Card.Root>
+			<Card.Root>
+				<Card.Header>
+					<Card.Title>Update Results</Card.Title>
+				</Card.Header>
+				<Card.Content>
+					<div class="flex flex-wrap items-end gap-2 md:flex-nowrap">
+						<div>
+							<Select.Root type="single" bind:value={selectedUserId}>
+								<Select.Label>Racer</Select.Label>
+								<Select.Trigger class="w-[100px]">{selectedUser?.name}</Select.Trigger>
+								<Select.Content class="md:max-w-16">
+									{#each playerList as { _id, name }, i (i)}
+										<Select.Item value={_id.toString()}>{name}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+						<div>
+							<Select.Root type="single" bind:value={selectedRaceId}>
+								<Select.Label>Race</Select.Label>
+								<Select.Trigger class="w-[240px] truncate overflow-hidden text-ellipsis">
+									{selectedRace.order + 1}.
+									{#if selectedRace?.trackStartId === selectedRace?.trackEndId}
+										{getTrackName(allTracks, selectedRace.trackStartId)}
+									{:else}
+										{getTrackName(allTracks, selectedRace.trackStartId)}
+										<MoveRightIcon />
+										{getTrackName(allTracks, selectedRace.trackEndId)}
+									{/if}
+								</Select.Trigger>
+								<Select.Content onchange={(e) => console.log(e)}>
+									{#each raceList.data as { _id, trackStartId, trackEndId, order }, i (i)}
+										{#if trackStartId === trackEndId}
+											<Select.Item value={_id}
+												>{order + 1}. {getTrackName(allTracks, trackStartId)}</Select.Item
+											>
+										{:else}
+											<Select.Item
+												value={_id}
+												onchange={(e) => console.log(e)}
+												class="group flex items-center gap-2 text-white hover:text-black"
+												>{order + 1}. {getTrackName(allTracks, trackStartId)}
+												<MoveRightIcon class="text-white group-data-[highlighted]:text-black" />
+												{getTrackName(allTracks, trackEndId)}</Select.Item
+											>
+										{/if}
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+
+						<div>
+							<Select.Root type="single" bind:value={selectedCharacterId}>
+								<Select.Label>Character</Select.Label>
+								<Select.Trigger class="w-[160px]">
+									{selectedCharacterId && getCharacterName(characterList, selectedCharacterId)}
+								</Select.Trigger>
+								<Select.Content>
+									{#each characterList as { name, _id } (_id)}
+										<Select.Item value={_id}>{name}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+						<div>
+							<Select.Root type="single" bind:value={selectedKartId}>
+								<Select.Label>Kart</Select.Label>
+								<Select.Trigger class="w-[160px]">
+									{selectedKart && getKartName(kartList, selectedKartId)}
+								</Select.Trigger>
+								<Select.Content>
+									{#each kartList as { name, _id } (_id)}
+										<Select.Item value={_id}>{name}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+						<div class="flex flex-col">
+							<Label class="text-muted-foreground px-2 py-1.5 text-xs">Pos</Label>
+							<Input placeholder="##" bind:value={finishPosition} />
+						</div>
+						<div class="flex w-32 flex-col">
+							<Button variant="secondary" class="cursor-pointer" onclick={() => submitRaceResults()}
+								>Submit</Button
+							>
 						</div>
 					</div>
-					<Table.Root>
-						<Table.Header>
-							<Table.Row>
-								<Table.Head class="w-20 md:w-32">Racer</Table.Head>
-								<Table.Head class="w-32 text-center">Average</Table.Head>
-								<Table.Head class="w-32 text-center">Last 5</Table.Head>
-								<Table.Head class="w-24 text-center">Trend</Table.Head>
-								<Table.Head class="w-48 text-center">Consistency</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#each selectedRaceAveragesData.data as { name, lastFiveAverage, bestResult, average, lastFiveResults }, i (i)}
-								<Table.Row>
-									<Table.Cell class="font-medium">{name}</Table.Cell>
-									<Table.Cell class="flex items-center justify-center text-center text-black">
-										<div
-											class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
-											style="background-color: {getPositionColour(average)}"
-										>
-											{(average ?? 0).toFixed(2) || '-'}
-										</div></Table.Cell
-									>
-									<Table.Cell class="w-44 py-0 text-center text-black">
-										<div class="flex h-full items-center justify-center gap-2">
-											{#each lastFiveResults as result}
-												<div
-													class="flex h-8 w-8 items-center justify-center rounded-sm text-center text-black"
-													style="background-color: {getPositionColour(result)}"
-												>
-													{result}
-												</div>
-											{/each}
-										</div>
-									</Table.Cell>
-
-									<Table.Cell class="w-44 py-0 text-center text-black">
-										{@const trend = average - lastFiveAverage}
-										{#if trend > 0.5}
-											<div class="flex items-center justify-center gap-2 text-green-600">
-												<MoveUpRightIcon />+{trend.toFixed(1)}
-											</div>
-										{:else if trend < -0.5}
-											<div class="flex items-center justify-center gap-2 text-red-600">
-												<MoveDownRightIcon />{trend.toFixed(1)}
-											</div>
-										{:else if trend >= 0}
-											<div class="flex items-center justify-center gap-2 text-yellow-500">
-												<MoveRightIcon />+{trend.toFixed(1)}
-											</div>
-										{:else if trend <= 0}
-											<div class="flex items-center justify-center gap-2 text-yellow-400">
-												<MoveRightIcon />{trend.toFixed(1)}
+				</Card.Content>
+			</Card.Root>
+			<div class="flex flex-col gap-2 md:flex-row">
+				<Card.Root class="min-w-40">
+					<Card.Header>
+						<Card.Title>Standings</Card.Title>
+					</Card.Header>
+					<Card.Content>
+						<div class="flex w-full flex-col gap-2">
+							{#each standings.data as { userId, points, position }, i (userId)}
+								<div class="flex grow flex-col gap-2">
+									<div class="text-sm font-medium">
+										{#if i !== 0 && points === standings.data[i - 1].points}
+											{position}. {getPlayerName(playerList, userId)}
+										{:else}
+											{position}. {getPlayerName(playerList, userId)}
+										{/if}
+									</div>
+									<div class="flex items-center justify-between text-lg">
+										<div>{points}</div>
+										{#if i !== 0}
+											<div class="text-sm text-red-500">
+												(-{standings.data[i - 1].points - points})
 											</div>
 										{/if}
-									</Table.Cell>
-									<Table.Cell class="text-center text-white">
-										<Progress
-											value={calculateConsistency(lastFiveResults) * 100}
-											class="bg-neutral-800"
-											indicatorColour={getConsistencyColorGradient(
-												calculateConsistency(lastFiveResults)
-											)}
-										/>
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</div>
-				<Separator orientation="horizontal" />
-				<RaceWinChanceChart data={selectedRaceWinChance} />
-			</div>
-		</Card.Content>
-	</Card.Root>
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Update Results</Card.Title>
-		</Card.Header>
-		<Card.Content>
-			<div class="flex flex-wrap items-end gap-2 md:flex-nowrap">
-				<div>
-					<Select.Root type="single" bind:value={selectedUserId}>
-						<Select.Label>Racer</Select.Label>
-						<Select.Trigger class="w-[100px]">{selectedUser.name}</Select.Trigger>
-						<Select.Content class="md:max-w-16">
-							{#each userList as { id, name }, i (i)}
-								<Select.Item value={id.toString()}>{name}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-				<div>
-					<Select.Root type="single" bind:value={selectedRaceId}>
-						<Select.Label>Race</Select.Label>
-						<Select.Trigger class="w-[240px] truncate overflow-hidden text-ellipsis">
-							{selectedRace.order + 1}.
-							{#if selectedRace.startTrackName === selectedRace.endTrackName}
-								{selectedRace.startTrackName}
-							{:else}
-								{selectedRace.startTrackName}
-								<MoveRightIcon />
-								{selectedRace.endTrackName}
-							{/if}
-						</Select.Trigger>
-						<Select.Content>
-							{#each raceResults as { id, startTrackName, endTrackName, order }, i (i)}
-								{#if startTrackName === endTrackName}
-									<Select.Item value={id.toString()}>{order + 1}. {startTrackName}</Select.Item>
-								{:else}
-									<Select.Item
-										value={id.toString()}
-										class="group flex items-center gap-2 text-white hover:text-black"
-										>{order + 1}. {startTrackName}
-										<MoveRightIcon class="text-white group-data-[highlighted]:text-black" />
-										{endTrackName}</Select.Item
-									>
-								{/if}
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-
-				<div>
-					<Select.Root type="single" bind:value={selectedCharacterId}>
-						<Select.Label>Character</Select.Label>
-						<Select.Trigger class="w-[160px]">
-							{selectedCharacter.name}
-						</Select.Trigger>
-						<Select.Content>
-							{#each characterList as character, i (i)}
-								<Select.Item value={character.id}>{character.name}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-				<div>
-					<Select.Root type="single" bind:value={selectedKartId}>
-						<Select.Label>Kart</Select.Label>
-						<Select.Trigger class="w-[160px]">
-							{selectedKart.name}
-						</Select.Trigger>
-						<Select.Content>
-							{#each kartList as kart, i (i)}
-								<Select.Item value={kart.id}>{kart.name}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-				<div class="flex flex-col">
-					<Label class="text-muted-foreground px-2 py-1.5 text-xs">Pos</Label>
-					<Input placeholder="##" bind:value={finishPosition} />
-				</div>
-				<div class="flex w-32 flex-col">
-					<Button variant="secondary" class="cursor-pointer" onclick={() => uploadRaceResults()}
-						>Submit</Button
-					>
-				</div>
-			</div>
-		</Card.Content>
-	</Card.Root>
-	<div class="flex flex-col gap-2 md:flex-row">
-		<Card.Root class="min-w-40">
-			<Card.Header>
-				<Card.Title>Standings</Card.Title>
-			</Card.Header>
-			<Card.Content>
-				<div class="flex w-full flex-col gap-2">
-					{#each latestRace.results
-						.slice()
-						.sort((a, b) => b.cumulativePoints - a.cumulativePoints) as { id, name, cumulativePoints }, i (i)}
-						<div class="flex grow flex-col gap-2">
-							<div class="text-sm font-medium">
-								{#if i !== 0 && cumulativePoints === latestRace.results
-											.slice()
-											.sort((a, b) => b.cumulativePoints - a.cumulativePoints)[i - 1].cumulativePoints}
-									{Number(i)}. {name}
-								{:else}
-									{Number(i) + 1}. {name}
-								{/if}
-							</div>
-							<div class="flex items-center justify-between text-lg">
-								<div>{cumulativePoints}</div>
-								{#if i !== 0}
-									<div class="text-sm text-red-500">
-										(-{Number(
-											latestRace.results
-												.slice()
-												.sort((a, b) => b.cumulativePoints - a.cumulativePoints)[i - 1]
-												.cumulativePoints
-										) - cumulativePoints})
 									</div>
-								{/if}
-							</div>
-							<Separator />
+									<Separator />
+								</div>
+							{/each}
 						</div>
-					{/each}
-				</div>
-			</Card.Content>
-		</Card.Root>
-		<Card.Root>
-			<div class="flex justify-between px-6">
-				<Tabs.Root bind:value={tab}>
-					<Tabs.List>
-						<Tabs.Trigger value="results">Results</Tabs.Trigger>
-						<Tabs.Trigger value="cumulative">Cumulative</Tabs.Trigger>
-					</Tabs.List>
-				</Tabs.Root>
-				<!--
+					</Card.Content>
+				</Card.Root><Card.Root>
+					<div class="flex justify-between px-6">
+						<Tabs.Root bind:value={tab}>
+							<Tabs.List>
+								<Tabs.Trigger value="results">Results</Tabs.Trigger>
+								<Tabs.Trigger value="cumulative">Cumulative</Tabs.Trigger>
+							</Tabs.List>
+						</Tabs.Root>
+						<!--
 				<Button
 					variant="outline"
 					onclick={() => fetch('/api/grandprix/40/user/6', { method: 'POST' })}
@@ -487,161 +477,114 @@
 					Add User
 				</Button>
 				-->
-			</div>
-			<Card.Header class="flex justify-between">
-				<div class="flex flex-col gap-1.5">
-					<Card.Title>Grand Prix {grandPrixDetails.order}</Card.Title>
-					{#if tab === 'standings'}
-						<Card.Description
-							>Cumulative points for Grand Prix {grandPrixDetails.order}.</Card.Description
-						>
-					{:else}
-						<Card.Description
-							>Race Results for Grand Prix {grandPrixDetails.order}.</Card.Description
-						>
-					{/if}
-				</div>
-				<Button
-					variant="outline"
-					onclick={() => (tableColours = tableColours === 'medals' ? 'scale' : 'medals')}
-				>
-					{#if tableColours === 'medals'}
-						<div class="flex">
-							<div class="h-4 w-4 bg-amber-300"></div>
-							<div class="h-4 w-4 bg-gray-300"></div>
-							<div class="h-4 w-4 bg-yellow-600"></div>
+					</div>
+					<Card.Header class="flex justify-between">
+						<div class="flex flex-col gap-1.5">
+							<Card.Title>Grand Prix {grandPrixDetails.order}</Card.Title>
+							{#if tab === 'standings'}
+								<Card.Description
+									>Cumulative points for Grand Prix {grandPrixDetails.order}.</Card.Description
+								>
+							{:else}
+								<Card.Description
+									>Race Results for Grand Prix {grandPrixDetails.order}.</Card.Description
+								>
+							{/if}
 						</div>
-					{:else}
-						<div class="flex">
-							<div class="h-4 w-4 bg-green-700"></div>
-							<div class="h-4 w-4 bg-amber-400"></div>
-							<div class="h-4 w-4 bg-red-700"></div>
-						</div>
-					{/if}
-				</Button>
-			</Card.Header>
-			{#if tab === 'cumulative'}
-				<ScrollArea class="w-96 md:w-full" orientation="horizontal">
-					<Card.Content>
-						<Table.Root class="table-fixed">
-							<Table.Header>
-								<Table.Row>
-									<Table.Head class="w-8"><div>#</div></Table.Head>
-									<Table.Head class="w-48"><div class="">Race</div></Table.Head>
-									{#each userList as { id, name }, i (i)}
-										<Table.Head class="w-16 min-w-16 text-center md:w-full"
-											><div>{name}</div></Table.Head
-										>
-									{/each}
-								</Table.Row>
-							</Table.Header>
-							<Table.Body>
-								{#each raceResults as { order, startTrackName, endTrackName, id, results }, i (i)}
-									<Table.Row>
-										<Table.Cell class="">{Number(order) + 1}</Table.Cell>
-										{#if startTrackName === endTrackName}
-											<Table.Cell
-												class="cursor-pointer hover:text-white/60"
-												onclick={() => (selectedRaceId = id)}>{startTrackName}</Table.Cell
-											>
-										{:else}
-											<Table.Cell
-												class="flex cursor-pointer items-center gap-1.5 hover:text-white/60"
-												onclick={() => (selectedRaceId = id)}
-											>
-												<div><RouteIcon /></div>
-												<div class="flex-col items-center justify-center text-xs">
-													<div>{startTrackName}</div>
-													<div>{endTrackName}</div>
-												</div>
-											</Table.Cell>
-										{/if}
-
-										{#each results as { id, name, position, cumulativePoints }, j (j)}
-											{#if position}
-												<Table.Cell class="text-center">{cumulativePoints}</Table.Cell>
-											{:else}
-												<Table.Cell class="text-center"></Table.Cell>
-											{/if}
-										{/each}
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</Card.Content>
-				</ScrollArea>
-			{:else if tab === 'results'}
-				<ScrollArea class="w-96 md:w-full" orientation="horizontal">
-					<Card.Content>
-						<Table.Root class="table-fixed">
-							<Table.Header>
-								<Table.Row>
-									<Table.Head class="w-8"><div>#</div></Table.Head>
-									<Table.Head class="w-48"><div class="">Race</div></Table.Head>
-									{#each userList as { id, name }, i (i)}
-										<Table.Head class="w-16 min-w-16 text-center md:w-full"
-											><div>{name}</div></Table.Head
-										>
-									{/each}
-								</Table.Row>
-							</Table.Header>
-							<Table.Body>
-								{#each raceResults as { order, startTrackName, endTrackName, id, results }, i (i)}
-									<Table.Row>
-										<Table.Cell class="">{Number(order) + 1}</Table.Cell>
-										{#if startTrackName === endTrackName}
-											<Table.Cell
-												class="cursor-pointer hover:text-white/60"
-												onclick={() => (selectedRaceId = id)}>{startTrackName}</Table.Cell
-											>
-										{:else}
-											<Table.Cell
-												class="flex cursor-pointer items-center gap-1.5 hover:text-white/60"
-												onclick={() => (selectedRaceId = id)}
-											>
-												<div><RouteIcon /></div>
-												<div class="flex-col items-center justify-center text-xs">
-													<div>{startTrackName}</div>
-													<div>{endTrackName}</div>
-												</div>
-											</Table.Cell>
-										{/if}
-
-										{#each results as { id, name, position }, j (j)}
-											{#if tableColours === 'scale'}
-												<Table.Cell
-													class="text-center text-black"
-													style="background-color: {getPositionColour(position)}"
+						<Button
+							variant="outline"
+							onclick={() => (tableColours = tableColours === 'medals' ? 'scale' : 'medals')}
+						>
+							{#if tableColours === 'medals'}
+								<div class="flex">
+									<div class="h-4 w-4 bg-amber-300"></div>
+									<div class="h-4 w-4 bg-gray-300"></div>
+									<div class="h-4 w-4 bg-yellow-600"></div>
+								</div>
+							{:else}
+								<div class="flex">
+									<div class="h-4 w-4 bg-green-700"></div>
+									<div class="h-4 w-4 bg-amber-400"></div>
+									<div class="h-4 w-4 bg-red-700"></div>
+								</div>
+							{/if}
+						</Button>
+					</Card.Header>
+					{#if tab === 'cumulative'}{:else if tab === 'results'}
+						<ScrollArea class="w-96 md:w-full" orientation="horizontal">
+							<Card.Content>
+								<Table.Root class="table-fixed">
+									<Table.Header>
+										<Table.Row>
+											<Table.Head class="w-8"><div>#</div></Table.Head>
+											<Table.Head class="w-48"><div class="">Race</div></Table.Head>
+											{#each grandPrixDetails.participants as playerId, i (i)}
+												<Table.Head class="w-16 min-w-16 text-center md:w-full"
+													><div>{getPlayerName(playerList, playerId)}</div></Table.Head
 												>
-													{position}
-												</Table.Cell>
-											{:else if tableColours === 'medals'}
-												{#if position === 1}
-													<Table.Cell class="bg-yellow-400 text-center text-black">
-														{position}
-													</Table.Cell>
-												{:else if position === 2}
-													<Table.Cell class="bg-gray-300 text-center text-black">
-														{position}
-													</Table.Cell>
-												{:else if position === 3}
-													<Table.Cell class="bg-yellow-600 text-center text-black">
-														{position}
-													</Table.Cell>
+											{/each}
+										</Table.Row>
+									</Table.Header>
+									<Table.Body>
+										{#each resultsTable.data as { order, trackStartId, trackEndId, _id, results }, i (i)}
+											<Table.Row>
+												<Table.Cell class="">{Number(order) + 1}</Table.Cell>
+												{#if trackStartId === trackEndId}
+													<Table.Cell
+														class="cursor-pointer hover:text-white/60"
+														onclick={() => (selectedRaceId = _id)}
+														>{getTrackName(allTracks, trackStartId)}</Table.Cell
+													>
 												{:else}
-													<Table.Cell class="text-center text-white">
-														{position}
+													<Table.Cell
+														class="flex cursor-pointer items-center gap-1.5 hover:text-white/60"
+														onclick={() => (selectedRaceId = _id)}
+													>
+														<div><RouteIcon /></div>
+														<div class="flex-col items-center justify-center text-xs">
+															<div>{getTrackName(allTracks, trackStartId)}</div>
+															<div>{getTrackName(allTracks, trackEndId)}</div>
+														</div>
 													</Table.Cell>
 												{/if}
-											{/if}
+
+												{#each results as { _id, userId, position }, j (j)}
+													{#if tableColours === 'scale'}
+														<Table.Cell
+															class="text-center text-black"
+															style="background-color: {getPositionColour(position)}"
+														>
+															{position}
+														</Table.Cell>
+													{:else if tableColours === 'medals'}
+														{#if position === 1}
+															<Table.Cell class="bg-yellow-400 text-center text-black">
+																{position}
+															</Table.Cell>
+														{:else if position === 2}
+															<Table.Cell class="bg-gray-300 text-center text-black">
+																{position}
+															</Table.Cell>
+														{:else if position === 3}
+															<Table.Cell class="bg-yellow-600 text-center text-black">
+																{position}
+															</Table.Cell>
+														{:else}
+															<Table.Cell class="text-center text-white">
+																{position}
+															</Table.Cell>
+														{/if}
+													{/if}
+												{/each}
+											</Table.Row>
 										{/each}
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</Card.Content>
-				</ScrollArea>
-			{/if}
-		</Card.Root>
-	</div>
+									</Table.Body>
+								</Table.Root>
+							</Card.Content>
+						</ScrollArea>
+					{/if}
+				</Card.Root>
+			</div>
+		</div>
+	{/if}
 </div>

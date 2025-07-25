@@ -6,18 +6,24 @@
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { cubicInOut } from 'svelte/easing';
-	import { getPositionColour } from '$lib/utils';
+	import { getPositionColour, getTrackName, getPlayerName } from '$lib/utils';
+	import { allTracks, allUsers } from '$lib/stores/states.svelte';
 
 	let { data } = $props();
 
+	let playerList = $derived(allUsers);
+	let trackList = $derived(allTracks);
+
 	let context = $state<ChartContextchance>();
 
-	let unformattedData = $derived(data.data);
+	let unformattedData = $derived(data);
+
+	let trackId = $derived(data[0].user.trackId);
 
 	let chartData = $derived(
 		unformattedData.map((chance) => {
 			return {
-				user: chance.user.name,
+				user: getPlayerName(playerList, chance.user.userId),
 				chance: Math.floor(chance.chance * 10) / 10,
 				average: chance.user.average,
 				formFactor: chance.formFactor,
@@ -35,7 +41,9 @@
 <Card.Root class="border-none px-0 py-0 shadow-none">
 	<Card.Header class="px-0">
 		<Card.Title>Win Chance</Card.Title>
-		<Card.Description>Percent chance to win <b>{data.trackName}</b></Card.Description>
+		<Card.Description
+			>Percent chance to win <b>{getTrackName(trackList, trackId)}</b></Card.Description
+		>
 	</Card.Header>
 	<Card.Content class="px-6">
 		<Chart.Container class="h-48 w-full" config={chartConfig}>

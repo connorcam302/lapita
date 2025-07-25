@@ -2,6 +2,7 @@ import { Migrations } from '@convex-dev/migrations';
 import { components, internal } from './_generated/api.js';
 import type { DataModel, Id } from './_generated/dataModel.js';
 import type { QueryCtx } from './_generated/server.js';
+import { placementToPoints } from '$lib/utils.js';
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 export const run = migrations.runner();
@@ -54,10 +55,43 @@ async function getRaceById(ctx: QueryCtx, id: number) {
 		.unique();
 }
 
+async function getRacesByGpId(ctx: QueryCtx, gpId: Id<'grandPrix'>) {
+	return ctx.db
+		.query('races')
+		.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gpId))
+		.collect();
+}
+
+async function getResultsByRaceIdAndUserId(
+	ctx: QueryCtx,
+	raceId: Id<'races'>,
+	userId: Id<'users'>
+) {
+	return ctx.db
+		.query('results')
+		.withIndex('raceIdAndUserId', (q) => q.eq('raceId', raceId).eq('userId', userId))
+		.collect();
+}
+
+async function getResultsByRaceId(ctx: QueryCtx, raceId: Id<'races'>) {
+	return ctx.db
+		.query('results')
+		.withIndex('raceId', (q) => q.eq('raceId', raceId))
+		.collect();
+}
+
+async function getGrandPrixStandingsByGrandPrixId(ctx: QueryCtx, gpId: Id<'grandPrix'>) {
+	return ctx.db
+		.query('grandPrixStandings')
+		.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gpId))
+		.collect();
+}
+
 // Step 3: Migration to update trackStartId and trackEndId in races
 
 export const updateCharacters = migrations.define({
 	table: 'characters',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		// Update characterId if it's a string reference
 		if (doc.id && typeof doc.id === 'string') {
@@ -65,7 +99,8 @@ export const updateCharacters = migrations.define({
 			if (!character) throw new Error(`Can't find character: ${doc.id}`);
 			if (character._id !== doc.id) {
 				await ctx.db.replace(doc._id, {
-					name: character.name
+					name: character.name,
+					img: character.id
 				});
 			}
 		}
@@ -76,6 +111,7 @@ export const runUpdateCharacters = migrations.runner(internal.migrations.updateC
 
 export const updateKarts = migrations.define({
 	table: 'karts',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		// Update kartId if it's a string reference
 		if (doc.id && typeof doc.id === 'string') {
@@ -83,7 +119,8 @@ export const updateKarts = migrations.define({
 			if (!kart) throw new Error(`Can't find kart: ${doc.id}`);
 			if (kart._id !== doc.id) {
 				await ctx.db.replace(doc._id, {
-					name: kart.name
+					name: kart.name,
+					img: kart.id
 				});
 			}
 		}
@@ -94,6 +131,7 @@ export const runUpdateKarts = migrations.runner(internal.migrations.updateKarts)
 
 export const updateGrandPrix = migrations.define({
 	table: 'grandPrix',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		const participantsDocId = Promise.all(
 			doc.participants.map(async (participant: number) => {
@@ -105,7 +143,9 @@ export const updateGrandPrix = migrations.define({
 					}
 				});
 			})
-		);
+		).then((res) => {
+			return res.sort((a, b) => b.localeCompare(a));
+		});
 
 		await ctx.db.replace(doc._id, {
 			order: doc.order,
@@ -118,6 +158,7 @@ export const runUpdateGrandPrix = migrations.runner(internal.migrations.updateGr
 
 export const updateUsers = migrations.define({
 	table: 'users',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		// Update userId if it's a string reference
 		if (doc.id && typeof doc.id === 'number') {
@@ -136,6 +177,7 @@ export const runUpdateUsers = migrations.runner(internal.migrations.updateUsers)
 
 export const updateTracks = migrations.define({
 	table: 'tracks',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		// Update trackId if it's a string reference
 		if (doc.id && typeof doc.id === 'string') {
@@ -143,7 +185,8 @@ export const updateTracks = migrations.define({
 			if (!track) throw new Error(`Can't find track: ${doc.id}`);
 			if (track._id !== doc.id) {
 				await ctx.db.replace(doc._id, {
-					name: track.name
+					name: track.name,
+					img: track.id
 				});
 			}
 		}
@@ -154,6 +197,7 @@ export const runUpdateTracks = migrations.runner(internal.migrations.updateTrack
 
 export const updateRaces = migrations.define({
 	table: 'races',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		const updates: any = {};
 
@@ -196,6 +240,7 @@ export const runUpdateRaces = migrations.runner(internal.migrations.updateRaces)
 
 export const updateResults = migrations.define({
 	table: 'results',
+	batchSize: 10000,
 	migrateOne: async (ctx, doc) => {
 		const updates: any = {};
 
@@ -245,3 +290,54 @@ export const updateResults = migrations.define({
 });
 
 export const runUpdateResults = migrations.runner(internal.migrations.updateResults);
+
+export const updateGrandPrixStandings = migrations.define({
+	table: 'grandPrix',
+	batchSize: 10000,
+	migrateOne: async (ctx, doc) => {
+		const updates: any = {};
+		const races = await getRacesByGpId(ctx, doc._id);
+		const grandPrixStandings = await getGrandPrixStandingsByGrandPrixId(ctx, doc._id);
+
+		// Delete existing standings
+		for (const standing of grandPrixStandings) {
+			await ctx.db.delete(standing._id);
+		}
+
+		const standings = new Map<
+			Id<'users'>,
+			{ gpId: Id<'grandPrix'>; userId: Id<'users'>; points: number }
+		>();
+
+		// Process races sequentially
+		for (const race of races) {
+			const raceResults = await getResultsByRaceId(ctx, race._id);
+			raceResults.forEach((result) => {
+				const currentStanding = standings.get(result.userId);
+				if (!currentStanding) {
+					standings.set(result.userId, {
+						gpId: doc._id,
+						userId: result.userId,
+						points: placementToPoints[result.position || 0]
+					});
+				} else {
+					currentStanding.points += placementToPoints[result.position || 0];
+					standings.set(result.userId, currentStanding);
+				}
+			});
+		}
+
+		// Insert new standings
+		for (const standing of Array.from(standings.values())) {
+			await ctx.db.insert('grandPrixStandings', {
+				grandPrixId: doc._id,
+				userId: standing.userId,
+				points: standing.points
+			});
+		}
+	}
+});
+
+export const runUpdateGrandPrixStandings = migrations.runner(
+	internal.migrations.updateGrandPrixStandings
+);
