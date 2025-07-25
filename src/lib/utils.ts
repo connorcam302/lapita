@@ -1,5 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { Id } from '../convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
+import type { api } from '../convex/_generated/api';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -35,6 +38,7 @@ export const addNumberSuffix = (num: number): string => {
 };
 
 export const placementToPoints: Record<number, number> = {
+	0: 0,
 	1: 15,
 	2: 12,
 	3: 10,
@@ -67,8 +71,6 @@ const toHex = (val: number) => clamp(val).toString(16).padStart(2, '0');
 export const rgbToHex = (rgbString: string) => {
 	// Extract numbers from rgb string using regex
 	const match = rgbString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-
-	console.log(rgbString);
 
 	if (!match) {
 		throw new Error('Invalid RGB string format');
@@ -155,4 +157,97 @@ export const getConsistencyColorGradient = (consistency: number) => {
 
 	// Should not reach here, but fallback
 	return 'rgb(0, 128, 0)';
+};
+
+export const getPlayerName = (
+	playerList: Awaited<FunctionReturnType<typeof api.users.getAllUsers>>,
+	id: Id<'users'>
+) => {
+	return playerList.find((player) => player._id === id)?.name || 'Unknown';
+};
+
+export const getTrackName = (
+	trackList: Awaited<FunctionReturnType<typeof api.tracks.all>>,
+	id: Id<'tracks'>
+) => {
+	return trackList.find((track) => track._id === id)?.name || 'Unknown';
+};
+
+export const getKartName = (
+	kartList: Awaited<FunctionReturnType<typeof api.karts.all>>,
+	id: Id<'karts'>
+) => {
+	return kartList.find((kart) => kart._id === id)?.name || 'Unknown';
+};
+
+export const getCharacterName = (
+	characterList: Awaited<FunctionReturnType<typeof api.characters.all>>,
+	id: Id<'characters'>
+) => {
+	return characterList.find((character) => character._id === id)?.name || 'Unknown';
+};
+
+export const calculateRaceWinChance = (trackAverages, recentRaces = [], formWeight = 0.3) => {
+	const trackList = Array.from(new Set(trackAverages.map((track) => track.trackId)));
+
+	return trackList.map((trackId) => {
+		const averageForTrack = trackAverages.filter((track) => track.trackId === trackId);
+
+		const usersByWeight = averageForTrack.map((user) => {
+			const avgPosition = parseFloat(user.avg);
+
+			// Base weight from historical average (aggressive approach)
+			const baseWeight = Math.pow(12 / avgPosition, 2);
+
+			// Calculate form factor from recent races
+			const userRecentRaces = recentRaces.filter((race) => race.userId === user.userId);
+			let formFactor = 1.0; // Neutral form
+
+			if (userRecentRaces.length > 0) {
+				// Get average of recent positions (lower is better)
+				const recentAvg =
+					userRecentRaces.reduce((sum, race) => sum + race.position, 0) / userRecentRaces.length;
+
+				// Compare recent form to historical average
+				const formDifference = avgPosition - recentAvg;
+
+				// Form factor: positive difference = good form, negative = bad form
+				// Scale: each position better/worse = ±15% change
+				formFactor = 1 + formDifference * 0.15;
+
+				// Cap form factor between 0.5 and 2.0 to prevent extreme swings
+				formFactor = Math.max(0.5, Math.min(2.0, formFactor));
+			}
+
+			// Combine base weight with form
+			const finalWeight = baseWeight * (1 - formWeight + formWeight * formFactor);
+
+			return {
+				...user,
+				average: avgPosition,
+				recentForm:
+					userRecentRaces.length > 0
+						? userRecentRaces.reduce((sum, race) => sum + race.position, 0) / userRecentRaces.length
+						: null,
+				formFactor: formFactor,
+				baseWeight: baseWeight,
+				finalWeight: finalWeight
+			};
+		});
+
+		// Sort by final weight (highest first)
+		usersByWeight.sort((a, b) => b.finalWeight - a.finalWeight);
+
+		const totalWeight = usersByWeight.reduce((acc, val) => acc + val.finalWeight, 0);
+
+		return usersByWeight.map((user, index) => {
+			const chance = (user.finalWeight / totalWeight) * 100;
+			return {
+				user,
+				formFactor: Math.round(user.formFactor * 100) / 100,
+				rankPosition: index + 1,
+				chance: Math.round(chance * 100) / 100
+			};
+		});
+	});
 };

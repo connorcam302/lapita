@@ -9,58 +9,27 @@ import {
 	getAveragePositionsByTracksLastFive,
 	getBestPositionsByTracks
 } from '$lib/server/serverUtils';
+import { PUBLIC_CONVEX_URL } from '$env/static/public';
+import { api } from '../../../convex/_generated/api';
+import { ConvexClient } from 'convex/browser';
+import type { Id } from '../../../convex/_generated/dataModel';
 
 export const load: PageServerLoad = async ({ params }) => {
-	const [grandPrixDetails] = await db
-		.select()
-		.from(grandPrix)
-		.where(eq(grandPrix.id, Number(params.id)))
-		.limit(1);
+	const client = new ConvexClient(PUBLIC_CONVEX_URL);
+	const grandPrixDetails = await client
+		.query(api.gps.getOne, { id: params.id as Id<'grandPrix'> })
+		.then((res) => {
+			const participantsSorted = res.participants.sort((a, b) => {
+				return b.localeCompare(a);
+			});
 
-	const initialRaceResults = await getRaceResultsByGpId(params.id);
-
-	const participants = await grandPrixDetails.participants;
-
-	const userList = await db
-		.select()
-		.from(users)
-		.where(inArray(users.id, participants))
-		.orderBy(asc(users.name));
-
-	const characterList = await db.select().from(characters).orderBy(asc(characters.name));
-
-	const kartList = await db.select().from(karts).orderBy(asc(karts.name));
-
-	const races = initialRaceResults.map((race) => race.trackStartId);
-
-	const trackAverages = await getAveragePositionsByTracks(participants, races);
-
-	const winChances = calculateRaceWinChance(trackAverages, [], 0);
-
-	const lastFiveResults = await getAveragePositionsByTracksLastFive(participants, races);
-	const bestResults = await getBestPositionsByTracks(participants, races);
-
-	const formatAverages = (trackAverages) => {
-		return races.map((trackId) => {
-			const averagesForTrack = trackAverages.filter((track) => track.trackId === trackId);
 			return {
-				trackId,
-				data: averagesForTrack.sort((a, b) => a.name.localeCompare(b.name))
+				...res,
+				participants: participantsSorted
 			};
 		});
-	};
 
 	return {
-		userList,
-		grandPrixDetails,
-		initialRaceResults,
-		characterList,
-		kartList,
-		winChances,
-		trackAverages: {
-			averages: formatAverages(trackAverages),
-			lastFiveResults: formatAverages(lastFiveResults),
-			bestResults: formatAverages(bestResults)
-		}
+		grandPrixDetails
 	};
 };

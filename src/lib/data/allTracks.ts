@@ -31,3 +31,8 @@ export const validTracks = [
 ];
 
 export const allTracks = [...validTracks, { id: 'rainbow-road', name: 'Rainbow Road' }];
+
+export type Track = {
+	id: string;
+	name: string;
+};

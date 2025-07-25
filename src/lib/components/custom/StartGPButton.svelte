@@ -8,10 +8,13 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import { goto } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
+	import { api } from '../../../convex/_generated/api';
+	import { useConvexClient } from 'convex-svelte';
 
 	const { playerList } = $props();
 
-	let userList = $state([]);
+	let userList: number[] = $state([]);
 
 	const adduser = (id: number) => {
 		userList.push(id);
@@ -30,22 +33,19 @@
 	};
 
 	const addAllUsers = () => {
-		userList = playerList.map(({ id }) => id);
+		userList = playerList.map(({ _id }) => _id);
 	};
 
-	const createGP = async () => {
-		const res = await fetch('/api/grandprix/new', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ participants: userList })
-		});
+	const client = useConvexClient();
 
-		if (res.ok) {
-			const { id } = await res.json();
-			goto(`/grandprix/${id}`);
+	const createGP = async () => {
+		if (userList.length < 4) {
+			toast.error('Please select at least 4 users');
+			return;
 		}
+		const newGpId = await client.mutation(api.gps.newGp, { participants: userList });
+
+		goto(`/grandprix/${newGpId}`);
 	};
 </script>
 
@@ -78,11 +78,11 @@
 			</div>
 			<ScrollArea class="max-h-[600px]">
 				<div class="flex flex-col gap-2 pr-2">
-					{#each playerList as { id, name }, i (i)}
-						{#if userList.includes(id)}
+					{#each playerList as { _id, name }, i (i)}
+						{#if userList.includes(_id)}
 							<Card.Root
 								class="border-lapita bg-lapita/10 cursor-pointer"
-								onclick={() => handleUserChange(id)}
+								onclick={() => handleUserChange(_id)}
 							>
 								<Card.Header>
 									<Card.Title>{name}</Card.Title>
@@ -91,7 +91,7 @@
 						{:else}
 							<Card.Root
 								class="hover:bg-lapita/10 cursor-pointer"
-								onclick={() => handleUserChange(id)}
+								onclick={() => handleUserChange(_id)}
 							>
 								<Card.Header>
 									<Card.Title>{name}</Card.Title>

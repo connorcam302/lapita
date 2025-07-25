@@ -5,40 +5,132 @@
 	import StartGPButton from '$lib/components/custom/StartGPButton.svelte';
 	import type { PageData } from './$types';
 	import Header from './Header.svelte';
+	import { api } from '../convex/_generated/api';
+	import { useQuery } from 'convex-svelte';
+	import { fade } from 'svelte/transition';
+	import { cubicIn } from 'svelte/easing';
+	import type { FunctionReturnType } from 'convex/server';
+	import Button from '$lib/components/ui/button/button.svelte';
+	import { getPlayerName } from '$lib/utils';
+	import { convexStore } from '$lib/stores/states.svelte';
 
-	const { data }: { data: PageData } = $props();
+	let playerList = $derived(convexStore.allUsers);
 
-	let { playerList, allGpResults } = data;
+	let pageCount = $state(1);
+	let displayedGps: Awaited<FunctionReturnType<typeof api.gps.getAll>>['page'] = $state([]);
+	let isLoadingMore = $state(false);
+
+	// Always query with the current pageCount - this gets ALL data up to pageCount
+	let allGpsQuery = $derived(useQuery(api.gps.getAll, { pageSize: 10, pageCount }));
+
+	// Initial loading (only show spinner on first load)
+	let initialLoading = $derived(!playerList || (pageCount === 1 && allGpsQuery.isLoading));
+	let errors = $derived(
+		[playerList, allGpsQuery].map(({ error }) => error).filter((error) => error)
+	);
+
+	// Update displayed GPS when new data arrives
+	$effect(() => {
+		if (!allGpsQuery.isLoading && allGpsQuery.data?.page) {
+			// Always update with the full dataset
+			displayedGps = allGpsQuery.data.page;
+
+			// If we were loading more, stop the loading state
+			if (isLoadingMore) {
+				isLoadingMore = false;
+			}
+		}
+	});
+
+	// Load more function - simply increment pageCount
+	function loadMore() {
+		if (isLoadingMore || allGpsQuery.isLoading) return;
+		isLoadingMore = true;
+		pageCount++; // This will trigger a new query
+	}
 </script>
 
-<Header />
-<div class="mx-auto flex max-w-3xl flex-col items-center gap-2 px-2 py-8">
-	<StartGPButton {playerList} />
-	<div class="flex w-full flex-col gap-2">
-		{#each allGpResults as gpResult (gpResult.id)}
-			<a href="/grandprix/{gpResult.id}">
-				<Card.Root class="w-full">
-					<Card.Header>
-						<Card.Title>Grand Prix {gpResult.order}</Card.Title>
-					</Card.Header>
-					<Card.Content class="flex gap-4">
-						{#each gpResult.standings as standing, i (i)}
-							<div class="flex w-28 justify-between">
-								<div class="flex flex-col gap-1">
-									<div class="text-lg font-medium">{i + 1}. {standing.username}</div>
-									<div class="flex items-center gap-4">
-										<div>{standing.score}</div>
-										{#if i !== 0}
-											<div class="text-sm text-red-500">(-{gpResult.standings[i - 1].score})</div>
-										{/if}
+<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
+	{#if initialLoading}
+		<div class="flex h-dvh items-center justify-center">
+			<img src="/lapita-logo.png" class="w-48 animate-bounce" alt="lapita-logo" />
+		</div>
+	{:else if errors.length}
+		<div>Something went wrong. Looks like this:</div>
+		<div class="flex flex-col gap-8">
+			{#each errors as error}
+				<div class="flex flex-col gap-2">
+					<div class="font-medium">{error!.name}</div>
+					<div class="text-sm">{error!.message}</div>
+					<div class="text-sm">{error!.cause}</div>
+					<div class="text-sm">{error!.stack}</div>
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<div>
+			<Header />
+			<div class="flex flex-col gap-8 pb-8">
+				<div class="mx-auto flex max-w-3xl flex-col items-center gap-2 px-2 py-8">
+					<StartGPButton {playerList} />
+				</div>
+
+				<div class="flex flex-col items-center justify-center gap-4">
+					{#each displayedGps as { order, grandPrixId, standings } (grandPrixId)}
+						<a href={`/grandprix/${grandPrixId}`}>
+							<Card.Root class="w-96 cursor-pointer">
+								<Card.Header>
+									<Card.Title>Grand Prix {order}</Card.Title>
+								</Card.Header>
+								<Card.Content>
+									<div class="flex flex-col">
+										{#each standings as { userId, points, position }, i (userId + grandPrixId)}
+											<div>
+												{#if i !== 0}
+													{@const gap = points - standings[i - 1].points}
+													<Separator class="my-2" />
+													<div class="flex justify-between">
+														<div>{position}. {getPlayerName(playerList, userId)}</div>
+														<div class="flex gap-2">
+															{#if gap !== 0}
+																<div class="text-red-400">({gap})</div>
+															{/if}
+															{points}
+														</div>
+													</div>
+												{:else}
+													<div class="flex justify-between">
+														<div class="font-medium">
+															{position}. {getPlayerName(playerList, userId)}
+														</div>
+														<div>{points}</div>
+													</div>
+												{/if}
+											</div>
+										{/each}
 									</div>
-								</div>
-								<Separator orientation="vertical" />
-							</div>
-						{/each}
-					</Card.Content>
-				</Card.Root>
-			</a>
-		{/each}
-	</div>
+								</Card.Content>
+							</Card.Root>
+						</a>
+					{/each}
+				</div>
+				<div
+					class="flex items-center justify-center"
+					transition:fade|global={{ duration: 500, easing: cubicIn }}
+				>
+					{#if isLoadingMore || allGpsQuery.isLoading}
+						<img src="/lapita-logo.png" class="w-16 animate-bounce" alt="lapita-logo" />
+					{:else}
+						<Button
+							variant="outline"
+							onclick={loadMore}
+							disabled={isLoadingMore || allGpsQuery.isLoading}
+						>
+							Load More
+						</Button>
+					{/if}
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
