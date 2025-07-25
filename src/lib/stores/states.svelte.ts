@@ -14,6 +14,15 @@ class ConvexStore {
 	allUsers: UserData | null = $state(null);
 	allTracks: TracksData | null = $state(null);
 
+	get isLoaded(): boolean {
+		return (
+			this.allKarts !== null &&
+			this.allCharacters !== null &&
+			this.allUsers !== null &&
+			this.allTracks !== null
+		);
+	}
+
 	client = new ConvexClient(PUBLIC_CONVEX_URL);
 
 	constructor() {

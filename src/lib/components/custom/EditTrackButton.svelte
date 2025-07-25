@@ -27,7 +27,6 @@
 					trackEndId: newTrackId
 				})
 				.then((res) => {
-					console.log(res);
 					isOpen = false;
 					return;
 				});
@@ -39,7 +38,6 @@
 					trackEndId: newTrackEndId
 				})
 				.then((res) => {
-					console.log(res);
 					isOpen = false;
 					return;
 				});

@@ -367,7 +367,7 @@
 										{getTrackName(convexStore.allTracks, selectedRace.trackEndId)}
 									{/if}
 								</Select.Trigger>
-								<Select.Content onchange={(e) => console.log(e)}>
+								<Select.Content>
 									{#each raceList.data as { _id, trackStartId, trackEndId, order }, i (i)}
 										{#if trackStartId === trackEndId}
 											<Select.Item value={_id}
@@ -379,7 +379,6 @@
 										{:else}
 											<Select.Item
 												value={_id}
-												onchange={(e) => console.log(e)}
 												class="group flex items-center gap-2 text-white hover:text-black"
 												>{order + 1}. {getTrackName(convexStore.allTracks, trackStartId)}
 												<MoveRightIcon class="text-white group-data-[highlighted]:text-black" />

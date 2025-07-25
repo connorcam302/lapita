@@ -6,12 +6,6 @@
 	export let leftColor = '#fdcf32';
 	export let rightColor = 'oklch(20.5% 0 0)';
 	export let height = '24rem'; // 384px equivalent
-
-	// Event handler for button click
-	function handleButtonClick() {
-		// Add your custom logic here
-		console.log('Button clicked!');
-	}
 </script>
 
 <header

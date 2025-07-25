@@ -16,6 +16,9 @@
 
 	let playerList = $derived(convexStore.allUsers);
 
+	$inspect(convexStore.isLoaded);
+	$inspect(convexStore);
+
 	let pageCount = $state(1);
 	let displayedGps: Awaited<FunctionReturnType<typeof api.gps.getAll>>['page'] = $state([]);
 	let isLoadingMore = $state(false);
@@ -25,9 +28,7 @@
 
 	// Initial loading (only show spinner on first load)
 	let initialLoading = $derived(!playerList || (pageCount === 1 && allGpsQuery.isLoading));
-	let errors = $derived(
-		[playerList, allGpsQuery].map(({ error }) => error).filter((error) => error)
-	);
+	let errors = $derived([allGpsQuery].map(({ error }) => error).filter((error) => error));
 
 	// Update displayed GPS when new data arrives
 	$effect(() => {
