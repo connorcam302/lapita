@@ -12,9 +12,9 @@
 	import type { FunctionReturnType } from 'convex/server';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { getPlayerName } from '$lib/utils';
-	import { allUsers } from '$lib/stores/states.svelte';
+	import { convexStore } from '$lib/stores/states.svelte';
 
-	let playerList = $derived(allUsers);
+	let playerList = $derived(convexStore.allUsers);
 
 	let pageCount = $state(1);
 	let displayedGps: Awaited<FunctionReturnType<typeof api.gps.getAll>>['page'] = $state([]);

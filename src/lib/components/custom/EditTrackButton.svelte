@@ -1,12 +1,9 @@
 <script lang="ts">
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
-	import { allTracks } from '$lib/stores/states.svelte';
-	import type { FunctionReturnType } from 'convex/server';
+	import { convexStore } from '$lib/stores/states.svelte';
 	import { api } from '../../../convex/_generated/api';
 	import { useConvexClient } from 'convex-svelte';
 	import { getTrackName } from '$lib/utils';
@@ -50,7 +47,7 @@
 	};
 </script>
 
-{#if allTracks}
+{#if convexStore.allTracks}
 	<Dialog.Root bind:open={isOpen}>
 		<Dialog.Trigger class={buttonVariants({ variant: 'outline' })}>Edit Track</Dialog.Trigger>
 		<Dialog.Content class="sm:max-w-[425px]">
@@ -71,10 +68,10 @@
 					<Select.Root type="single" bind:value={newTrackId}>
 						<Select.Label>Track</Select.Label>
 						<Select.Trigger class="w-[180px] truncate overflow-hidden text-ellipsis">
-							{getTrackName(allTracks, newTrackId)}
+							{getTrackName(convexStore.allTracks, newTrackId)}
 						</Select.Trigger>
 						<Select.Content>
-							{#each allTracks as { name, _id } (_id)}
+							{#each convexStore.allTracks as { name, _id } (_id)}
 								<Select.Item value={_id}>{name}</Select.Item>
 							{/each}
 						</Select.Content>
@@ -86,10 +83,10 @@
 							<Select.Root type="single" bind:value={newTrackStartId}>
 								<Select.Label>Start Track</Select.Label>
 								<Select.Trigger class="w-[180px] truncate overflow-hidden text-ellipsis">
-									{getTrackName(allTracks, newTrackStartId)}
+									{getTrackName(convexStore.allTracks, newTrackStartId)}
 								</Select.Trigger>
 								<Select.Content>
-									{#each allTracks as { name, _id } (_id)}
+									{#each convexStore.allTracks as { name, _id } (_id)}
 										<Select.Item value={_id}>{name}</Select.Item>
 									{/each}
 								</Select.Content>
@@ -99,10 +96,10 @@
 							<Select.Root type="single" bind:value={newTrackEndId}>
 								<Select.Label>End Track</Select.Label>
 								<Select.Trigger class="w-[180px] truncate overflow-hidden text-ellipsis">
-									{getTrackName(allTracks, newTrackEndId)}
+									{getTrackName(convexStore.allTracks, newTrackEndId)}
 								</Select.Trigger>
 								<Select.Content>
-									{#each allTracks as { name, _id } (_id)}
+									{#each convexStore.allTracks as { name, _id } (_id)}
 										<Select.Item value={_id}>{name}</Select.Item>
 									{/each}
 								</Select.Content>

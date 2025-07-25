@@ -7,12 +7,12 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { cubicInOut } from 'svelte/easing';
 	import { getPositionColour, getTrackName, getPlayerName } from '$lib/utils';
-	import { allTracks, allUsers } from '$lib/stores/states.svelte';
+	import { convexStore } from '$lib/stores/states.svelte';
 
 	let { data } = $props();
 
-	let playerList = $derived(allUsers);
-	let trackList = $derived(allTracks);
+	let playerList = $derived(convexStore.allUsers);
+	let trackList = $derived(convexStore.allTracks);
 
 	let context = $state<ChartContextchance>();
 

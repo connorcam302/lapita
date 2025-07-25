@@ -39,7 +39,7 @@
 	import { api } from '../../../convex/_generated/api';
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import type { Id } from '../../../convex/_generated/dataModel';
-	import { allCharacters, allKarts, allTracks, allUsers } from '$lib/stores/states.svelte';
+	import { convexStore } from '$lib/stores/states.svelte';
 	import { fade } from 'svelte/transition';
 	import { cubicIn } from 'svelte/easing';
 
@@ -50,21 +50,10 @@
 
 	let { grandPrixDetails } = data;
 
-	let kartList = $derived(allKarts);
-	let characterList = $derived(allCharacters);
-	let playerList = $derived(allUsers);
-	let trackList = $derived(allTracks);
-
-	if ([grandPrixDetails, playerList, characterList, kartList].includes(null)) {
-		throw new Error(
-			JSON.stringify({
-				grandPrixDetails: grandPrixDetails ? true : false,
-				playerList: playerList ? true : false,
-				characterList: characterList ? true : false,
-				kartList: kartList ? true : false
-			})
-		);
-	}
+	let kartList = $derived(convexStore.allKarts);
+	let characterList = $derived(convexStore.allCharacters);
+	let playerList = $derived(convexStore.allUsers);
+	let trackList = $derived(convexStore.allTracks);
 
 	let raceList = $derived(
 		useQuery(api.races.inGrandPrix, { grandPrixId: grandPrixDetails!._id as Id<'grandPrix'> })
@@ -89,7 +78,9 @@
 		kartList?.find((kart) => kart._id === (selectedKartId as Id<'karts'>))
 	);
 	let selectedUserId = $derived(
-		playerList && ((localStorage.getItem('selectedUserId') ?? playerList[0]!._id) as Id<'users'>)
+		playerList &&
+			((grandPrixDetails.participants.find((id) => id === localStorage.getItem('selectedUserId')) ??
+				playerList[0]!._id) as Id<'users'>)
 	);
 	let selectedUser = $derived(
 		playerList?.find((racer) => racer._id === (selectedUserId as Id<'users'>))
@@ -110,8 +101,6 @@
 				users: grandPrixDetails.participants
 			})
 	);
-
-	//$inspect(stats);
 
 	let selectedRaceStats = $derived(
 		stats && !stats.isLoading && selectedRaceId
@@ -213,7 +202,10 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
+		<div
+			class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8"
+			transition:fade|global={{ duration: 500, easing: cubicIn }}
+		>
 			<Card.Root>
 				<Card.Header>
 					<div class="flex justify-between">
@@ -354,8 +346,10 @@
 								<Select.Label>Racer</Select.Label>
 								<Select.Trigger class="w-[100px]">{selectedUser?.name}</Select.Trigger>
 								<Select.Content class="md:max-w-16">
-									{#each playerList as { _id, name }, i (i)}
-										<Select.Item value={_id.toString()}>{name}</Select.Item>
+									{#each grandPrixDetails.participants as participant, i (i)}
+										<Select.Item value={participant.toString()}
+											>{getPlayerName(playerList, participant)}</Select.Item
+										>
 									{/each}
 								</Select.Content>
 							</Select.Root>
@@ -366,27 +360,30 @@
 								<Select.Trigger class="w-[240px] truncate overflow-hidden text-ellipsis">
 									{selectedRace.order + 1}.
 									{#if selectedRace?.trackStartId === selectedRace?.trackEndId}
-										{getTrackName(allTracks, selectedRace.trackStartId)}
+										{getTrackName(convexStore.allTracks, selectedRace.trackStartId)}
 									{:else}
-										{getTrackName(allTracks, selectedRace.trackStartId)}
+										{getTrackName(convexStore.allTracks, selectedRace.trackStartId)}
 										<MoveRightIcon />
-										{getTrackName(allTracks, selectedRace.trackEndId)}
+										{getTrackName(convexStore.allTracks, selectedRace.trackEndId)}
 									{/if}
 								</Select.Trigger>
 								<Select.Content onchange={(e) => console.log(e)}>
 									{#each raceList.data as { _id, trackStartId, trackEndId, order }, i (i)}
 										{#if trackStartId === trackEndId}
 											<Select.Item value={_id}
-												>{order + 1}. {getTrackName(allTracks, trackStartId)}</Select.Item
+												>{order + 1}. {getTrackName(
+													convexStore.allTracks,
+													trackStartId
+												)}</Select.Item
 											>
 										{:else}
 											<Select.Item
 												value={_id}
 												onchange={(e) => console.log(e)}
 												class="group flex items-center gap-2 text-white hover:text-black"
-												>{order + 1}. {getTrackName(allTracks, trackStartId)}
+												>{order + 1}. {getTrackName(convexStore.allTracks, trackStartId)}
 												<MoveRightIcon class="text-white group-data-[highlighted]:text-black" />
-												{getTrackName(allTracks, trackEndId)}</Select.Item
+												{getTrackName(convexStore.allTracks, trackEndId)}</Select.Item
 											>
 										{/if}
 									{/each}
@@ -533,7 +530,7 @@
 													<Table.Cell
 														class="cursor-pointer hover:text-white/60"
 														onclick={() => (selectedRaceId = _id)}
-														>{getTrackName(allTracks, trackStartId)}</Table.Cell
+														>{getTrackName(convexStore.allTracks, trackStartId)}</Table.Cell
 													>
 												{:else}
 													<Table.Cell
@@ -542,8 +539,8 @@
 													>
 														<div><RouteIcon /></div>
 														<div class="flex-col items-center justify-center text-xs">
-															<div>{getTrackName(allTracks, trackStartId)}</div>
-															<div>{getTrackName(allTracks, trackEndId)}</div>
+															<div>{getTrackName(convexStore.allTracks, trackStartId)}</div>
+															<div>{getTrackName(convexStore.allTracks, trackEndId)}</div>
 														</div>
 													</Table.Cell>
 												{/if}
