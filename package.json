@@ -67,6 +67,8 @@
 		"d3-scale": "^4.0.2",
 		"dotenv": "^17.2.0",
 		"drizzle-orm": "^0.40.0",
+		"lucide": "^0.525.0",
+		"lucide-svelte": "^0.525.0",
 		"mode-watcher": "^1.1.0",
 		"postgres": "^3.4.5"
 	}
