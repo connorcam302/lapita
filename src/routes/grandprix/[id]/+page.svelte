@@ -163,6 +163,9 @@
 			})
 			.then((res) => {
 				if (res?.status === 'Ok') {
+					const currentRaceIndex = raceList.data.findIndex((race) => race._id === selectedRaceId);
+					selectedRaceId = raceList.data[currentRaceIndex + 1]._id;
+					finishPosition = '';
 					return toast.success('Uploaded Result', {
 						description: `Result successfully uploaded.`
 					});
