@@ -11,6 +11,7 @@
 	import { toast } from 'svelte-sonner';
 	import { api } from '../../../convex/_generated/api';
 	import { useConvexClient } from 'convex-svelte';
+	import { onDestroy } from 'svelte';
 
 	const { playerList } = $props();
 
@@ -38,15 +39,22 @@
 
 	const client = useConvexClient();
 
+	let creatingGp = $state(false);
+
 	const createGP = async () => {
 		if (userList.length < 4) {
 			toast.error('Please select at least 4 users');
 			return;
 		}
+		creatingGp = true;
 		const newGpId = await client.mutation(api.gps.newGp, { participants: userList });
 
 		goto(`/grandprix/${newGpId}`);
 	};
+
+	onDestroy(() => {
+		creatingGp = false;
+	});
 </script>
 
 <Sheet.Root>
@@ -103,9 +111,22 @@
 			</ScrollArea>
 		</div>
 		<Sheet.Footer>
-			<Button variant="secondary" type="submit" class="cursor-pointer" onclick={() => createGP()}
-				>Start grand Prix</Button
+			<Button
+				variant="secondary"
+				type="submit"
+				class="cursor-pointer"
+				onclick={() => createGP()}
+				disabled={creatingGp}
 			>
+				{#if creatingGp}
+					<div class="flex items-center gap-2">
+						<div class="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+						<div>Starting Grand Prix</div>
+					</div>
+				{:else}
+					Start Grand Prix
+				{/if}
+			</Button>
 		</Sheet.Footer>
 	</Sheet.Content>
 </Sheet.Root>
