@@ -13,7 +13,6 @@
 	import { fade } from 'svelte/transition';
 	import { cubicIn } from 'svelte/easing';
 	import { page } from '$app/state';
-	$inspect(convexStore.isLoaded);
 </script>
 
 <ModeWatcher />

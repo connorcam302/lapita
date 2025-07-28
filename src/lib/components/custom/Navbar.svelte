@@ -10,6 +10,7 @@
 
 	import { toggleMode } from 'mode-watcher';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { ChartBarIcon } from 'lucide-svelte';
 
 	type ListItemProps = HTMLAttributes<HTMLAnchorElement> & {
 		title: string;
@@ -27,6 +28,7 @@
 	</a>
 	<NavigationMenu.Root>
 		<NavigationMenu.List>
+			<!--
 			<NavigationMenu.Item>
 				<NavigationMenu.Link>
 					{#snippet child()}
@@ -49,6 +51,20 @@
 						>
 							<CarIcon class="text-2xl" />
 							<div>Racers</div>
+						</a>
+					{/snippet}
+				</NavigationMenu.Link>
+			</NavigationMenu.Item>
+			--->
+			<NavigationMenu.Item>
+				<NavigationMenu.Link>
+					{#snippet child()}
+						<a
+							href="/stats"
+							class={cn(navigationMenuTriggerStyle(), 'flex items-center gap-2 text-lg')}
+						>
+							<ChartBarIcon class="text-2xl" />
+							<div>Stats</div>
 						</a>
 					{/snippet}
 				</NavigationMenu.Link>

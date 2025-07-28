@@ -16,9 +16,6 @@
 
 	let playerList = $derived(convexStore.allUsers);
 
-	$inspect(convexStore.isLoaded);
-	$inspect(convexStore);
-
 	let pageCount = $state(1);
 	let displayedGps: Awaited<FunctionReturnType<typeof api.gps.getAll>>['page'] = $state([]);
 	let isLoadingMore = $state(false);

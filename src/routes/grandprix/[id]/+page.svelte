@@ -22,7 +22,10 @@
 		getCharacterName,
 		getTrackName,
 		getKartName,
-		getPlayerName
+		getPlayerName,
+		getKartImage,
+		getCharacterImage,
+		chartColours
 	} from '$lib/utils';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
@@ -41,7 +44,12 @@
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import { convexStore } from '$lib/stores/states.svelte';
 	import { fade } from 'svelte/transition';
-	import { cubicIn } from 'svelte/easing';
+	import { cubicIn, cubicInOut } from 'svelte/easing';
+	import type { FunctionReturnType } from 'convex/server';
+	import { scaleBand } from 'd3-scale';
+	import { BarChart, type ChartContextValue } from 'layerchart';
+	import * as Chart from '$lib/components/ui/chart/index.js';
+	import { characterDataset, kartDataset } from '$lib/data/StatsDataset';
 
 	const { data }: { data: PageData } = $props();
 	const client = useConvexClient();
@@ -118,6 +126,55 @@
 		!raceList.isLoading && useQuery(api.results.get, { grandPrixId: grandPrixDetails?._id })
 	);
 
+	const getPlayerMostUsedCharacterKart = (
+		userId: Id<'users'>,
+		stats: FunctionReturnType<typeof api.results.get>
+	) => {
+		if (!stats) return;
+		const userResults = stats
+			.map((race) => race.results.find((result) => result.userId === userId))
+			.filter((result) => Object.hasOwn(result, 'kartId') && Object.hasOwn(result, 'characterId'));
+
+		if (userResults.length === 0) return;
+
+		const kartUsageCount = userResults.reduce((acc, curr) => {
+			acc[curr.kartId] = (acc[curr.kartId] || 0) + 1;
+			return acc;
+		}, {});
+
+		const mostUsedKartId = Object.entries(kartUsageCount).reduce((a, b) => {
+			return b[1] > a[1] ? b : a;
+		})[0];
+
+		const userMostUsedKart = userResults.find((result) => result.kartId === mostUsedKartId);
+
+		const characterUsageCount = userResults.reduce((acc, curr) => {
+			acc[curr.characterId] = (acc[curr.characterId] || 0) + 1;
+			return acc;
+		}, {});
+
+		const mostUsedCharacterId = Object.entries(characterUsageCount).reduce((a, b) => {
+			return b[1] > a[1] ? b : a;
+		})[0];
+
+		const userMostUsedCharacter = userResults.find(
+			(result) => result.characterId === mostUsedCharacterId
+		);
+
+		return { kart: userMostUsedKart?.kartId, character: userMostUsedCharacter?.characterId };
+	};
+
+	const playerMostUsedCharacterKart = $derived(
+		!resultsTable.isLoading &&
+			resultsTable.data &&
+			grandPrixDetails.participants.map((userId) => {
+				return {
+					userId,
+					...getPlayerMostUsedCharacterKart(userId, resultsTable.data)
+				};
+			})
+	);
+
 	$effect(() => {
 		if (!selectedRaceId) return;
 		goto(`/grandprix/${grandPrixDetails?._id}?track=${selectedRaceId}`, { noScroll: true });
@@ -177,7 +234,85 @@
 			});
 	};
 
-	$inspect(selectedRaceStats);
+	const statNames = [
+		'roadSpeed',
+		'terrainSpeed',
+		'waterSpeed',
+		'acceleration',
+		'weight',
+		'roadHandling',
+		'terrainHandling',
+		'waterHandling'
+	];
+
+	const statLabels = {
+		roadSpeed: 'Road Speed',
+		terrainSpeed: 'Terrain Speed',
+		waterSpeed: 'Water Speed',
+		acceleration: 'Acceleration',
+		weight: 'Weight',
+		roadHandling: 'Road Handling',
+		terrainHandling: 'Terrain Handling',
+		waterHandling: 'Water Handling'
+	};
+
+	const chartData = $derived(
+		playerMostUsedCharacterKart &&
+			playerMostUsedCharacterKart.filter(
+				(result) => Object.hasOwn(result, 'kart') && Object.hasOwn(result, 'character')
+			).length === grandPrixDetails.participants.length &&
+			statNames.map((statKey) => {
+				console.log(
+					playerMostUsedCharacterKart.filter(
+						(result) => Object.hasOwn(result, 'kart') && Object.hasOwn(result, 'character')
+					)
+				);
+				const dataPoint = { stat: statLabels[statKey] };
+
+				// Add each user's stat value using their name as the key
+				grandPrixDetails.participants.forEach((userId) => {
+					const playerCharacterKart = playerMostUsedCharacterKart.find(
+						(player) => player.userId === userId
+					);
+					const characterName = getCharacterName(characterList, playerCharacterKart?.character);
+					const kartName = getKartName(kartList, playerCharacterKart?.kart);
+
+					const characterStats = characterDataset.getByName(characterName);
+					const kartStats = kartDataset.getByName(kartName);
+
+					const playerName = getPlayerName(playerList, userId);
+					dataPoint[playerName] = characterStats[statKey] + kartStats[statKey];
+				});
+
+				return dataPoint;
+			})
+	);
+
+	const chartConfig =
+		grandPrixDetails &&
+		(grandPrixDetails.participants.reduce((acc, userId) => {
+			acc[getPlayerName(playerList, userId)] = {
+				label: getPlayerName(playerList, userId),
+				color: '#f5cd30' // or however you generate random colors
+			};
+			return acc;
+		}, {}) satisfies Chart.ChartConfig);
+	let context = $state<ChartContextValue>();
+
+	const chartKeys = $derived(
+		grandPrixDetails &&
+			grandPrixDetails.participants.map((userId, i) => {
+				return {
+					key: getPlayerName(playerList, userId),
+					label: getPlayerName(playerList, userId),
+					color: chartColours[i]
+				};
+			})
+	);
+
+	$inspect(chartConfig);
+	$inspect(chartKeys);
+	$inspect(chartData);
 
 	let initialLoading = $derived(
 		raceList.isLoading || standings.isLoading || resultsTable.isLoading || !selectedRaceStats
@@ -338,6 +473,50 @@
 					</div>
 				</Card.Content>
 			</Card.Root>
+			{#if chartData}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>Combined Stats</Card.Title>
+						<Card.Description
+							>Based on each players most used character and kart combination.</Card.Description
+						>
+					</Card.Header>
+					<Card.Content class=" max-w-5xl py-4">
+						<Chart.Container config={chartConfig} class="h-64 w-full">
+							<BarChart
+								bind:context
+								data={chartData}
+								xScale={scaleBand().padding(0.1)}
+								x="stat"
+								axis="x"
+								series={chartKeys}
+								x1Scale={scaleBand().paddingInner(0.2)}
+								seriesLayout="group"
+								rule={false}
+								props={{
+									bars: {
+										stroke: 'none',
+										strokeWidth: 0,
+										rounded: 'top',
+										// use the height of the chart to animate the bars
+										initialY: context?.height,
+										initialHeight: 0,
+										motion: {
+											y: { type: 'tween', duration: 500, easing: cubicInOut },
+											height: { type: 'tween', duration: 500, easing: cubicInOut }
+										}
+									},
+									highlight: { area: { fill: 'none' } }
+								}}
+							>
+								{#snippet tooltip()}
+									<Chart.Tooltip />
+								{/snippet}
+							</BarChart>
+						</Chart.Container>
+					</Card.Content>
+				</Card.Root>
+			{/if}
 			<Card.Root>
 				<Card.Header>
 					<Card.Title>Update Results</Card.Title>
@@ -431,6 +610,7 @@
 					</div>
 				</Card.Content>
 			</Card.Root>
+
 			<div class="flex flex-col gap-2 md:flex-row">
 				<Card.Root class="min-w-40">
 					<Card.Header>
@@ -438,29 +618,43 @@
 					</Card.Header>
 					<Card.Content>
 						<div class="flex w-full flex-col gap-2">
-							{#each standings.data as { userId, points, position }, i (userId)}
-								<div class="flex grow flex-col gap-2">
-									<div class="text-sm font-medium">
-										{#if i !== 0 && points === standings.data[i - 1].points}
-											{position}. {getPlayerName(playerList, userId)}
-										{:else}
-											{position}. {getPlayerName(playerList, userId)}
-										{/if}
+							{#if standings.data && playerMostUsedCharacterKart}
+								{#each standings.data as { userId, points, position }, i (userId)}
+									{@const characterKart = playerMostUsedCharacterKart.find(
+										(player) => player.userId === userId
+									)}
+									{@const characterImage =
+										characterKart && getCharacterImage(characterList, characterKart.character)}
+									{@const kartImage = characterKart && getKartImage(kartList, characterKart.kart)}
+									<div class="flex grow flex-col gap-2">
+										<div class="text-sm font-medium">
+											{#if i !== 0 && points === standings.data[i - 1].points}
+												{position}. {getPlayerName(playerList, userId)}
+											{:else}
+												{position}. {getPlayerName(playerList, userId)}
+											{/if}
+										</div>
+										<div class="flex items-center justify-between text-lg">
+											<div>{points}</div>
+											{#if i !== 0}
+												<div class="text-sm text-red-500">
+													(-{standings.data[i - 1].points - points})
+												</div>
+											{/if}
+										</div>
+										<div class="flex justify-between">
+											<img src={`/characters/${characterImage}.png`} alt="" class="h-10" />
+											<img src={`/karts/${kartImage}.png`} alt="" class="h-10" />
+										</div>
+
+										<Separator />
 									</div>
-									<div class="flex items-center justify-between text-lg">
-										<div>{points}</div>
-										{#if i !== 0}
-											<div class="text-sm text-red-500">
-												(-{standings.data[i - 1].points - points})
-											</div>
-										{/if}
-									</div>
-									<Separator />
-								</div>
-							{/each}
+								{/each}
+							{/if}
 						</div>
 					</Card.Content>
-				</Card.Root><Card.Root>
+				</Card.Root>
+				<Card.Root>
 					<div class="flex justify-between px-6">
 						<Tabs.Root bind:value={tab}>
 							<Tabs.List>

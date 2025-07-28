@@ -180,11 +180,25 @@ export const getKartName = (
 	return kartList.find((kart) => kart._id === id)?.name || 'Unknown';
 };
 
+export const getKartImage = (
+	kartList: Awaited<FunctionReturnType<typeof api.karts.all>>,
+	id: Id<'karts'>
+) => {
+	return kartList.find((kart) => kart._id === id)?.img || '';
+};
+
 export const getCharacterName = (
 	characterList: Awaited<FunctionReturnType<typeof api.characters.all>>,
 	id: Id<'characters'>
 ) => {
 	return characterList.find((character) => character._id === id)?.name || 'Unknown';
+};
+
+export const getCharacterImage = (
+	characterList: Awaited<FunctionReturnType<typeof api.characters.all>>,
+	id: Id<'characters'>
+) => {
+	return characterList.find((character) => character._id === id)?.img || '';
 };
 
 export const calculateRaceWinChance = (trackAverages, recentRaces = [], formWeight = 0.3) => {
@@ -251,3 +265,41 @@ export const calculateRaceWinChance = (trackAverages, recentRaces = [], formWeig
 		});
 	});
 };
+
+export const getStatColour = (value) => {
+	const colors = [
+		'#DC2626', // 0 - Red
+		'#EA580C', // 1 - Red-Orange
+		'#F59E0B', // 2 - Orange
+		'#EAB308', // 3 - Yellow-Orange
+		'#84CC16', // 4 - Yellow-Green
+		'#65A30D', // 5 - Light Green
+		'#22C55E', // 6 - Bright Green
+		'#16A34A', // 7 - Green
+		'#15803D', // 8 - Medium Green
+		'#166534', // 9 - Darker Green
+		'#059669', // 10 - Emerald Green
+		'#059669' // 11 - Emerald Green
+	];
+
+	const clampedValue = Math.max(0, Math.min(10, Math.floor(value)));
+	return colors[clampedValue];
+};
+
+export const chartColours = [
+	'#EF4444', // red-500
+	'#3B82F6', // blue-500
+	'#10B981', // green-500
+	'#EAB308', // yellow-500
+	'#8B5CF6', // purple-500
+	'#EC4899', // pink-500
+	'#6366F1', // indigo-500
+	'#F97316', // orange-500
+	'#14B8A6', // teal-500
+	'#06B6D4', // cyan-500
+	'#84CC16', // lime-500
+	'#059669', // emerald-500
+	'#7C3AED', // violet-500
+	'#D946EF', // fuchsia-500
+	'#F43F5E' // rose-500
+];
