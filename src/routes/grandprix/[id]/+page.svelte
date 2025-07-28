@@ -473,50 +473,6 @@
 					</div>
 				</Card.Content>
 			</Card.Root>
-			{#if chartData}
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>Combined Stats</Card.Title>
-						<Card.Description
-							>Based on each players most used character and kart combination.</Card.Description
-						>
-					</Card.Header>
-					<Card.Content class=" max-w-5xl py-4">
-						<Chart.Container config={chartConfig} class="h-64 w-full">
-							<BarChart
-								bind:context
-								data={chartData}
-								xScale={scaleBand().padding(0.1)}
-								x="stat"
-								axis="x"
-								series={chartKeys}
-								x1Scale={scaleBand().paddingInner(0.2)}
-								seriesLayout="group"
-								rule={false}
-								props={{
-									bars: {
-										stroke: 'none',
-										strokeWidth: 0,
-										rounded: 'top',
-										// use the height of the chart to animate the bars
-										initialY: context?.height,
-										initialHeight: 0,
-										motion: {
-											y: { type: 'tween', duration: 500, easing: cubicInOut },
-											height: { type: 'tween', duration: 500, easing: cubicInOut }
-										}
-									},
-									highlight: { area: { fill: 'none' } }
-								}}
-							>
-								{#snippet tooltip()}
-									<Chart.Tooltip />
-								{/snippet}
-							</BarChart>
-						</Chart.Container>
-					</Card.Content>
-				</Card.Root>
-			{/if}
 			<Card.Root>
 				<Card.Header>
 					<Card.Title>Update Results</Card.Title>
@@ -778,6 +734,51 @@
 					{/if}
 				</Card.Root>
 			</div>
+
+			{#if chartData}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>Combined Stats</Card.Title>
+						<Card.Description
+							>Based on each players most used character and kart combination.</Card.Description
+						>
+					</Card.Header>
+					<Card.Content class=" max-w-5xl py-4">
+						<Chart.Container config={chartConfig} class="h-64 w-full">
+							<BarChart
+								bind:context
+								data={chartData}
+								xScale={scaleBand().padding(0.1)}
+								x="stat"
+								axis="x"
+								series={chartKeys}
+								x1Scale={scaleBand().paddingInner(0.2)}
+								seriesLayout="group"
+								rule={false}
+								props={{
+									bars: {
+										stroke: 'none',
+										strokeWidth: 0,
+										rounded: 'top',
+										// use the height of the chart to animate the bars
+										initialY: context?.height,
+										initialHeight: 0,
+										motion: {
+											y: { type: 'tween', duration: 500, easing: cubicInOut },
+											height: { type: 'tween', duration: 500, easing: cubicInOut }
+										}
+									},
+									highlight: { area: { fill: 'none' } }
+								}}
+							>
+								{#snippet tooltip()}
+									<Chart.Tooltip />
+								{/snippet}
+							</BarChart>
+						</Chart.Container>
+					</Card.Content>
+				</Card.Root>
+			{/if}
 		</div>
 	{/if}
 </div>
