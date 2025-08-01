@@ -12,9 +12,6 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"db:push": "drizzle-kit push",
-		"db:migrate": "drizzle-kit migrate",
-		"db:studio": "drizzle-kit studio",
 		"load-data": "tsx sample/load-data.ts",
 		"convex": "convex",
 		"dev:convex": "convex dev"
@@ -34,7 +31,6 @@
 		"@types/node": "^22",
 		"bits-ui": "^2.8.10",
 		"clsx": "^2.1.1",
-		"drizzle-kit": "^0.30.2",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",
 		"eslint-plugin-svelte": "^3.0.0",
@@ -58,7 +54,6 @@
 	},
 	"dependencies": {
 		"@convex-dev/migrations": "^0.2.9",
-		"@supabase/supabase-js": "^2.50.3",
 		"convex": "^1.25.4",
 		"convex-helpers": "^0.1.99",
 		"convex-svelte": "^0.0.11",
@@ -66,7 +61,6 @@
 		"d3-array": "^3.2.4",
 		"d3-scale": "^4.0.2",
 		"dotenv": "^17.2.0",
-		"drizzle-orm": "^0.40.0",
 		"lucide": "^0.525.0",
 		"lucide-svelte": "^0.525.0",
 		"mode-watcher": "^1.1.0",

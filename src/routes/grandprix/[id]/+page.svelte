@@ -12,7 +12,6 @@
 	import MoveUpRightIcon from '@lucide/svelte/icons/trending-up';
 	import MoveDownRightIcon from '@lucide/svelte/icons/trending-down';
 	import { onMount, onDestroy, getContext } from 'svelte';
-	import { supabase } from '$lib/supabaseClient';
 	import { toast } from 'svelte-sonner';
 	import {
 		addNumberSuffix,
