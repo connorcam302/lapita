@@ -65,6 +65,8 @@
 	let raceList = $derived(
 		useQuery(api.races.inGrandPrix, { grandPrixId: grandPrixDetails!._id as Id<'grandPrix'> })
 	);
+
+	$inspect(raceList);
 	let standings = $derived(
 		useQuery(api.standings.getOne, {
 			grandPrixId: grandPrixDetails!._id as Id<'grandPrix'>
@@ -124,6 +126,8 @@
 	const resultsTable = $derived(
 		!raceList.isLoading && useQuery(api.results.get, { grandPrixId: grandPrixDetails?._id })
 	);
+
+	$inspect(resultsTable);
 
 	const getPlayerMostUsedCharacterKart = (
 		userId: Id<'users'>,
@@ -308,10 +312,6 @@
 				};
 			})
 	);
-
-	$inspect(chartConfig);
-	$inspect(chartKeys);
-	$inspect(chartData);
 
 	let initialLoading = $derived(
 		raceList.isLoading || standings.isLoading || resultsTable.isLoading || !selectedRaceStats

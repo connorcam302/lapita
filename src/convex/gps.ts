@@ -43,6 +43,7 @@ export const getAll = query({
 
 				return {
 					grandPrixId: gp._id,
+					createdAt: gp._creationTime,
 					order: gp.order,
 					standings: sortedStandings
 				};
@@ -52,6 +53,49 @@ export const getAll = query({
 			...gps,
 			page
 		};
+	}
+});
+
+export const getPlayerResults = query({
+	args: { userId: v.id('users') },
+	handler: async (ctx, { userId }) => {
+		const playerGps = await ctx.db
+			.query('grandPrixStandings')
+			.withIndex('userId', (q) => q.eq('userId', userId))
+			.collect();
+
+		return Promise.all(
+			playerGps.map(async (gp) => {
+				const gpStandings = await ctx.db
+					.query('grandPrixStandings')
+					.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp.grandPrixId))
+					.collect();
+
+				const gpDetails = await ctx.db
+					.query('grandPrix')
+					.withIndex('by_id', (q) => q.eq('_id', gp.grandPrixId))
+					.unique();
+
+				const sortedStandings = gpStandings
+					.sort((a, b) => b.points - a.points)
+					.map((standing, index, sortedArray) => {
+						// Find position by looking for the first occurrence of this point value
+						const position = sortedArray.findIndex((s) => s.points === standing.points) + 1;
+						return {
+							userId: standing.userId,
+							points: standing.points,
+							position
+						};
+					});
+
+				return {
+					grandPrixId: gp.grandPrixId,
+					order: gpDetails!.order,
+					position: sortedStandings.find((standing) => standing.userId === userId)?.position,
+					points: sortedStandings.find((standing) => standing.userId === userId)?.points
+				};
+			})
+		);
 	}
 });
 

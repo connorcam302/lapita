@@ -173,6 +173,13 @@ export const getTrackName = (
 	return trackList.find((track) => track._id === id)?.name || 'Unknown';
 };
 
+export const getTrackImage = (
+	trackList: Awaited<FunctionReturnType<typeof api.tracks.all>>,
+	id: Id<'tracks'>
+) => {
+	return trackList.find((track) => track._id === id)?.img || '';
+};
+
 export const getKartName = (
 	kartList: Awaited<FunctionReturnType<typeof api.karts.all>>,
 	id: Id<'karts'>
@@ -303,3 +310,164 @@ export const chartColours = [
 	'#D946EF', // fuchsia-500
 	'#F43F5E' // rose-500
 ];
+
+interface RaceResult {
+	_creationTime: number;
+	_id: string;
+	characterId?: string; // Can be undefined
+	kartId?: string; // Can be undefined
+	grandPrixId: string;
+	position: number; // Race position (e.g., 1st, 2nd, 3rd)
+	raceId: string;
+	trackEndId: string;
+	trackStartId: string;
+	userId: string;
+}
+
+interface GPResult {
+	grandPrixId: string;
+	order: number;
+	points: number;
+	position: number; // GP final position (e.g., 1st, 2nd, 3rd)
+	// IMPORTANT: Adding userId here. If your actual 'results' array doesn't have it,
+	// you'll need to adjust how you link GP outcomes back to users.
+	userId: string;
+}
+
+interface CharacterKartStats {
+	averagePlacement: number;
+	bestTrack: string | null;
+	worstTrack: string | null;
+	gpWins: number;
+	averageGpPoints: number;
+	// Internal counters
+	_totalRacePlacements: number;
+	_raceCount: number;
+	_gpPointsSum: number;
+	_gpCount: number;
+	_trackPlacements: Map<string, number[]>; // Map<trackId, [placements...]>
+}
+
+export const analyzeCharacterKartCombinations = (
+	resultsData: RaceResult[],
+	gpResults: GPResult[]
+) => {
+	// Filter out invalid race results first
+	const validResultsData = resultsData.filter((r) => r.characterId && r.kartId);
+
+	const uniqueKartCharacterCombos = [
+		...new Set(validResultsData.map((r) => `${r.kartId}-${r.characterId}`))
+	].map((combo) => {
+		const [kartId, characterId] = combo.split('-');
+		return { kartId, characterId };
+	});
+
+	const gpStats = gpResults
+		.map((gpResult) => {
+			const resultsForGp = validResultsData.filter((r) => r.grandPrixId === gpResult.grandPrixId);
+
+			const mostUsedCombo = resultsForGp.reduce((acc, r) => {
+				const combo = `${r.kartId}-${r.characterId}`;
+				acc[combo] = (acc[combo] || 0) + 1;
+				return acc;
+			}, {});
+
+			const { kartId, characterId } = Object.entries(mostUsedCombo).reduce(
+				(acc, [combo, count]) => {
+					if (count > acc.count) {
+						acc.kartId = combo.split('-')[0];
+						acc.characterId = combo.split('-')[1];
+						acc.count = count;
+					}
+					return acc;
+				},
+				{ kartId: '', characterId: '', count: 0 }
+			);
+
+			return { kartId, characterId, ...gpResult };
+		})
+		.filter((gpResult) => gpResult.kartId && gpResult.characterId);
+
+	const characterKartStats = uniqueKartCharacterCombos.map((combo) => {
+		const { kartId, characterId } = combo;
+
+		const raceCount = validResultsData.filter(
+			(r) => r.kartId === kartId && r.characterId === characterId
+		).length;
+
+		const gpCount = gpStats.filter(
+			(gpResult) => gpResult.kartId === kartId && gpResult.characterId === characterId
+		).length;
+
+		const comboAveragePlacement =
+			validResultsData
+				.filter((r) => r.kartId === kartId && r.characterId === characterId)
+				.reduce((acc, r) => acc + r.position, 0) / raceCount;
+
+		const averagesPerTrack = validResultsData
+			.filter((r) => r.kartId === kartId && r.characterId === characterId)
+			.reduce((acc, r) => {
+				acc[r.trackStartId] = (acc[r.trackStartId] || []).concat(r.position);
+				return acc;
+			}, {});
+
+		const comboBestTrack = Object.entries(averagesPerTrack).reduce(
+			(acc, [trackId, placements]) => {
+				const average = placements.reduce((acc, p) => acc + p, 0) / placements.length;
+				if (average < acc.average) {
+					acc.average = average;
+					acc.trackId = trackId;
+				}
+				return acc;
+			},
+			{ average: Infinity, trackId: '' }
+		).trackId;
+
+		const bestTrackAverage =
+			averagesPerTrack[comboBestTrack].reduce((acc, p) => acc + p, 0) /
+			averagesPerTrack[comboBestTrack].length;
+
+		const comboWorstTrack = Object.entries(averagesPerTrack).reduce(
+			(acc, [trackId, placements]) => {
+				const average = placements.reduce((acc, p) => acc + p, 0) / placements.length;
+				if (average > acc.average) {
+					acc.average = average;
+					acc.trackId = trackId;
+				}
+				return acc;
+			},
+			{ average: -Infinity, trackId: '' }
+		).trackId;
+
+		const worstTrackAverage =
+			averagesPerTrack[comboWorstTrack].reduce((acc, p) => acc + p, 0) /
+			averagesPerTrack[comboWorstTrack].length;
+
+		const averageGpPoints =
+			gpStats
+				.filter((gpResult) => gpResult.kartId === kartId && gpResult.characterId === characterId)
+				.reduce((acc, gpResult) => acc + gpResult.points, 0) / gpCount;
+
+		const gpWins = gpStats.filter(
+			(gpResult) =>
+				gpResult.kartId === kartId &&
+				gpResult.characterId === characterId &&
+				gpResult.position === 1
+		).length;
+
+		return {
+			kartId,
+			characterId,
+			averagePlacement: comboAveragePlacement,
+			bestTrack: comboBestTrack,
+			bestTrackAverage,
+			worstTrack: comboWorstTrack,
+			worstTrackAverage,
+			raceCount,
+			averageGpPoints,
+			gpWins
+		};
+	});
+
+	return characterKartStats.sort((a, b) => b.raceCount - a.raceCount);
+};

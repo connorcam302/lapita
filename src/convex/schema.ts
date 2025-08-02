@@ -55,4 +55,5 @@ export default defineSchema({
 	})
 		.index('raceId', ['raceId'])
 		.index('raceIdAndUserId', ['raceId', 'userId'])
+		.index('userId', ['userId'])
 });

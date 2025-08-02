@@ -14,6 +14,10 @@
 	import { getPlayerName } from '$lib/utils';
 	import { convexStore } from '$lib/stores/states.svelte';
 
+	import dayjs from 'dayjs';
+	import relativeTime from 'dayjs/plugin/relativeTime';
+	dayjs.extend(relativeTime);
+
 	let playerList = $derived(convexStore.allUsers);
 
 	let pageCount = $state(1);
@@ -21,7 +25,7 @@
 	let isLoadingMore = $state(false);
 
 	// Always query with the current pageCount - this gets ALL data up to pageCount
-	let allGpsQuery = $derived(useQuery(api.gps.getAll, { pageSize: 10, pageCount }));
+	let allGpsQuery = $derived(useQuery(api.gps.getAll, { pageSize: 12, pageCount }));
 
 	// Initial loading (only show spinner on first load)
 	let initialLoading = $derived(!playerList || (pageCount === 1 && allGpsQuery.isLoading));
@@ -46,6 +50,8 @@
 		isLoadingMore = true;
 		pageCount++; // This will trigger a new query
 	}
+
+	$inspect(displayedGps);
 </script>
 
 <div transition:fade|global={{ duration: 500, easing: cubicIn }}>
@@ -73,12 +79,16 @@
 					<StartGPButton {playerList} />
 				</div>
 
-				<div class="flex flex-col items-center justify-center gap-4">
-					{#each displayedGps as { order, grandPrixId, standings } (grandPrixId)}
+				<div class="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-4">
+					{#each displayedGps as { order, grandPrixId, standings, createdAt } (grandPrixId)}
+						{@const date = dayjs(Math.floor(createdAt))}
 						<a href={`/grandprix/${grandPrixId}`}>
-							<Card.Root class="w-96 cursor-pointer">
+							<Card.Root class="h-96 w-80 cursor-pointer">
 								<Card.Header>
 									<Card.Title>Grand Prix {order}</Card.Title>
+									<Card.Description>
+										{date.fromNow()}
+									</Card.Description>
 								</Card.Header>
 								<Card.Content>
 									<div class="flex flex-col">

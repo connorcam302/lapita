@@ -30,6 +30,50 @@ export const get = query({
 	}
 });
 
+export const getPlayer = query({
+	args: { userId: v.id('users') },
+	handler: async (ctx, { userId }) => {
+		const results = await ctx.db
+			.query('results')
+			.withIndex('userId', (q) => q.eq('userId', userId))
+			.collect()
+			.then((results) => {
+				return results.filter(
+					(result) => result.position !== null && result.position !== undefined
+				);
+			});
+
+		return await Promise.all(
+			results.map(async (result) => {
+				const race = await ctx.db
+					.query('races')
+					.withIndex('by_id', (q) => q.eq('_id', result.raceId))
+					.unique();
+
+				const grandPrix = await ctx.db
+					.query('grandPrix')
+					.withIndex('by_id', (q) => q.eq('_id', race.grandPrixId))
+					.unique();
+
+				return {
+					...result,
+					grandPrixOrder: grandPrix.order,
+					grandPrixId: race?.grandPrixId,
+					trackStartId: race?.trackStartId,
+					trackEndId: race?.trackEndId
+				};
+			})
+		).then((results) => {
+			return results.sort((a, b) => {
+				if (a.grandPrixOrder === b.grandPrixOrder) {
+					return a.position - b.position;
+				}
+				return b.grandPrixOrder - a.grandPrixOrder;
+			});
+		});
+	}
+});
+
 export const update = mutation({
 	args: {
 		grandPrixId: v.id('grandPrix'),
