@@ -284,6 +284,8 @@
 					const kartStats = kartDataset.getByName(kartName);
 
 					const playerName = getPlayerName(playerList, userId);
+
+					console.log(characterName, kartName);
 					dataPoint[playerName] = characterStats[statKey] + kartStats[statKey];
 				});
 
