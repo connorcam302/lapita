@@ -9,6 +9,7 @@
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import { getTrackName } from '$lib/utils';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
 
 	interface TrackData {
 		trackEndId: Id<'tracks'>;
@@ -17,18 +18,27 @@
 	}
 
 	let allTracks = $derived(convexStore.allTracks);
+	let tab = $state('average');
 
 	let { data }: { data: TrackData[] } = $props();
 
 	let chartData = $derived(
-		data.map((track) => {
-			return {
-				name: getTrackName(allTracks, track.trackEndId),
-				allTimeAverage: track.average,
+		data
+			.map((track) => {
+				return {
+					name: getTrackName(allTracks, track.trackEndId),
+					allTimeAverage: track.average,
 
-				last10Average: track.positions.slice(-10).reduce((acc, position) => acc + position, 0) / 10
-			};
-		})
+					last10Average:
+						track.positions.slice(0, 10).reduce((acc, position) => acc + position, 0) / 10
+				};
+			})
+			.sort((a, b) => {
+				if (tab === 'average') {
+					return a.allTimeAverage - b.allTimeAverage;
+				}
+				return a.last10Average - b.last10Average;
+			})
 	);
 
 	let yMax = $derived(
@@ -44,21 +54,36 @@
 	);
 
 	const chartConfig = {
-		last10Average: { label: 'Last 10 Average', color: '#00bc7d' },
-		allTimeAverage: { label: 'All Time Average', color: '#f6cc30' }
+		allTimeAverage: { label: 'All Time Average', color: '#00bc7d' },
+		last10Average: { label: 'Last 10 Average', color: '#f6cc30' }
 	} satisfies Chart.ChartConfig;
 	let context = $state<ChartContextValue>();
 </script>
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>Track Averages</Card.Title>
-		<Card.Description
-			>All time average in <span class="font-medium text-[#00bc7d]">green</span> and average of last
-			10 races in
-			<span class="font-medium text-[#f6cc30]">yellow</span></Card.Description
-		>
-	</Card.Header>
+		<div class="flex justify-between">
+			<div class="flex flex-col gap-1.5">
+				<Card.Title>Track Averages</Card.Title>
+				<Card.Description
+					>All time average in <span class="font-medium text-[#00bc7d]">green</span> and average of
+					last 10 races in
+					<span class="font-medium text-[#f6cc30]">yellow</span></Card.Description
+				>
+			</div>
+			<div class="flex items-center gap-2 text-sm">
+				<div class="text-muted-foreground">Order by</div>
+				<div>
+					<Tabs.Root bind:value={tab}>
+						<Tabs.List>
+							<Tabs.Trigger value="average">Average</Tabs.Trigger>
+							<Tabs.Trigger value="last10">Last 10</Tabs.Trigger>
+						</Tabs.List>
+					</Tabs.Root>
+				</div>
+			</div>
+		</div></Card.Header
+	>
 	<Card.Content>
 		<ScrollArea class="w-full rounded border pb-2" orientation="horizontal">
 			<Chart.Container config={chartConfig} class="h-64 w-[1200px]">
@@ -70,14 +95,14 @@
 					axis="x"
 					series={[
 						{
-							key: 'last10Average',
-							label: 'Last 10 Average',
-							color: chartConfig.last10Average.color
-						},
-						{
 							key: 'allTimeAverage',
 							label: 'All Time Average',
 							color: chartConfig.allTimeAverage.color
+						},
+						{
+							key: 'last10Average',
+							label: 'Last 10 Average',
+							color: chartConfig.last10Average.color
 						}
 					]}
 					x1Scale={scaleBand().paddingInner(0.2)}

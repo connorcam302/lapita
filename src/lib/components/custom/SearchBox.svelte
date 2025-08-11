@@ -39,13 +39,25 @@
 					}))
 				},
 				{
-					header: 'Stats',
+					header: 'Calculator',
 					options: [
 						{
 							label: 'Calculator',
 							value: 'calculator',
 							action: async () => {
 								goto(`/stats/calculator`);
+							}
+						}
+					]
+				},
+				{
+					header: 'Track Stats',
+					options: [
+						{
+							label: 'Track Stats',
+							value: 'track stats',
+							action: async () => {
+								goto(`/track-stats`);
 							}
 						}
 					]

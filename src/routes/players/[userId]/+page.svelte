@@ -90,13 +90,16 @@
 				}))
 				.sort((a, b) => a.average - b.average)
 	);
+	$inspect(trackCounts);
 
 	let page = $state(1);
 
-	$inspect(characterKartStats);
-
 	let initialLoading = $derived(
-		!characterKartCombinations && !trackCounts && !characterKartStats && gpResults?.isLoading
+		resultsData?.isLoading ||
+			gpResults?.isLoading ||
+			!characterKartStats ||
+			!trackCounts ||
+			!characterKartCombinations
 	);
 	let errors = $derived([resultsData].map(({ error }) => error).filter((error) => error));
 </script>
