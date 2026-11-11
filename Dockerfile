@@ -1,37 +1,48 @@
-# syntax=docker/dockerfile:1
 FROM oven/bun:1.3.4 AS bun
 
 FROM node:22-bookworm-slim AS dependencies
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
+
 COPY package.json bun.lock .npmrc ./
 RUN bun install --frozen-lockfile --ignore-scripts
 
 FROM dependencies AS build
 COPY . .
-# SvelteKit's static public env is embedded in both server and browser bundles.
+
 ARG PUBLIC_CONVEX_URL
-ENV PUBLIC_CONVEX_URL=$PUBLIC_CONVEX_URL
-RUN test -n "$PUBLIC_CONVEX_URL" || (echo 'PUBLIC_CONVEX_URL build argument is required' >&2; exit 1)
-RUN bun run build
-
-# Deploy only after the website compiles; the key exists only for this RUN.
-FROM build AS convex-deploy
-ARG DEPLOY_CONVEX=false
-# Change this non-secret value to repeat a deployment with otherwise cached inputs.
+ARG CONVEX_SELF_HOSTED_URL
 ARG CONVEX_DEPLOY_REVISION=0
+
+ENV PUBLIC_CONVEX_URL=$PUBLIC_CONVEX_URL
+
+RUN test -n "$PUBLIC_CONVEX_URL" && bun run build
+
 RUN --mount=type=secret,id=CONVEX_SELF_HOSTED_ADMIN_KEY \
-    : "$CONVEX_DEPLOY_REVISION" && sh scripts/deploy-convex.sh
+    test -n "$CONVEX_SELF_HOSTED_URL" && \
+    test -s /run/secrets/CONVEX_SELF_HOSTED_ADMIN_KEY && \
+    : "$CONVEX_DEPLOY_REVISION" && \
+    CONVEX_SELF_HOSTED_ADMIN_KEY="$(cat /run/secrets/CONVEX_SELF_HOSTED_ADMIN_KEY)" \
+    ./node_modules/.bin/convex deploy
 
+# Install production dependencies only
 FROM dependencies AS production-dependencies
-RUN rm -rf node_modules && bun install --frozen-lockfile --production --ignore-scripts
+RUN rm -rf node_modules && \
+    bun install --frozen-lockfile --production --ignore-scripts
 
+# Final application image
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
+
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
+
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
-COPY --from=convex-deploy --chown=node:node /app/build ./build
+COPY --from=build --chown=node:node /app/build ./build
 COPY --chown=node:node package.json ./
+
 USER node
 EXPOSE 3000
+
 CMD ["node", "build"]
