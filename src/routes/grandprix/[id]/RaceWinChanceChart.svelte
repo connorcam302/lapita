@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { scaleBand } from 'd3-scale';
-	import { BarChart, type ChartContextchance } from 'layerchart';
+	import { BarChart, type ChartState } from 'layerchart';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
 	import * as Chart from '$lib/components/ui/chart/index.js';
@@ -14,7 +14,7 @@
 	let playerList = $derived(convexStore.allUsers);
 	let trackList = $derived(convexStore.allTracks);
 
-	let context = $state<ChartContextchance>();
+	let context = $state<ChartState>();
 
 	let unformattedData = $derived(data);
 
@@ -88,7 +88,7 @@
 						{#snippet formatter({ name, index, value, item })}
 							<Table.Root class="table-fixed"
 								><Table.Caption
-									>{item.payload.user}
+									>{item.payload?.user}
 									<div class="text-[6pt]">
 										Form Factor will always be 1 and Form will always be null
 									</div></Table.Caption
@@ -97,25 +97,25 @@
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Win Chance</Table.Cell>
 										<Table.Cell class="text-right text-xs font-medium"
-											>{item.payload.chance}%</Table.Cell
+											>{item.payload?.chance}%</Table.Cell
 										>
 									</Table.Row>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Average Pos</Table.Cell>
 										<Table.Cell class="text-right text-xs font-medium"
-											>{item.payload.average.toFixed(2)}</Table.Cell
+											>{Number(item.payload?.average ?? 0).toFixed(2)}</Table.Cell
 										>
 									</Table.Row>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Form Factor</Table.Cell>
 										<Table.Cell class="text-right text-xs font-medium"
-											>{item.payload.formFactor}</Table.Cell
+											>{item.payload?.formFactor}</Table.Cell
 										>
 									</Table.Row>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Form</Table.Cell>
 										<Table.Cell class="text-right text-xs font-medium"
-											>{item.payload.form}</Table.Cell
+											>{item.payload?.form}</Table.Cell
 										>
 									</Table.Row>
 								</Table.Body>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import CharacterKartStats from '$lib/components/custom/CharacterKartStats.svelte';
 	import * as Select from '$lib/components/ui/select/index';
 	import { convexStore } from '$lib/stores/states.svelte';
@@ -12,7 +13,7 @@
 		getStatColour
 	} from '$lib/utils';
 	import { scaleBand } from 'd3-scale';
-	import { BarChart, type ChartContextValue } from 'layerchart';
+	import { BarChart, type ChartState } from 'layerchart';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -25,14 +26,20 @@
 	let kartList = $derived(convexStore.allKarts);
 
 	let selectedCharacterId = $derived(
-		characterList &&
-			((localStorage.getItem('selectedCharacterId') ?? characterList[0]._id) as Id<'characters'>)
+		characterList?.find((character) => character._id === page.url.searchParams.get('character'))
+			?._id ??
+			characterList?.find(
+				(character) => character._id === localStorage.getItem('selectedCharacterId')
+			)?._id ??
+			characterList?.[0]?._id
 	);
 	let selectedCharacter = $derived(
 		characterList?.find((char) => char._id === (selectedCharacterId as Id<'characters'>))
 	);
 	let selectedKartId = $derived(
-		kartList && ((localStorage.getItem('selectedKartId') ?? kartList[0]._id) as Id<'karts'>)
+		kartList?.find((kart) => kart._id === page.url.searchParams.get('kart'))?._id ??
+			kartList?.find((kart) => kart._id === localStorage.getItem('selectedKartId'))?._id ??
+			kartList?.[0]?._id
 	);
 	let selectedKart = $derived(
 		kartList?.find((kart) => kart._id === (selectedKartId as Id<'karts'>))
@@ -84,7 +91,7 @@
 		character: { label: 'character', color: 'var(--chart-2)' },
 		kart: { label: 'kart', color: '#f5cd30' }
 	} satisfies Chart.ChartConfig;
-	let context = $state<ChartContextValue>();
+	let context = $state<ChartState>();
 </script>
 
 <div class="flex flex-col items-center justify-center gap-2 py-4">

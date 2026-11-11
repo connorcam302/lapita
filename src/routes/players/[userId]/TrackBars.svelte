@@ -1,142 +1,102 @@
 <script lang="ts">
-	import { scaleBand } from 'd3-scale';
-	import { BarChart, type ChartContextValue } from 'layerchart';
-	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
-	import * as Chart from '$lib/components/ui/chart/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import { cubicInOut } from 'svelte/easing';
+	import { resolve } from '$app/paths';
 	import { convexStore } from '$lib/stores/states.svelte';
-	import type { Id } from '../../../convex/_generated/dataModel';
-	import { getTrackName } from '$lib/utils';
-	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
-	import * as Tabs from '$lib/components/ui/tabs/index.js';
-
-	interface TrackData {
-		trackEndId: Id<'tracks'>;
-		positions: number[];
-		average: number;
-	}
-
-	let allTracks = $derived(convexStore.allTracks);
-	let tab = $state('average');
-
-	let { data }: { data: TrackData[] } = $props();
-
-	let chartData = $derived(
-		data
-			.map((track) => {
-				return {
-					name: getTrackName(allTracks, track.trackEndId),
-					allTimeAverage: track.average,
-
-					last10Average:
-						track.positions.slice(0, 10).reduce((acc, position) => acc + position, 0) / 10
-				};
-			})
-			.sort((a, b) => {
-				if (tab === 'average') {
-					return a.allTimeAverage - b.allTimeAverage;
-				}
-				return a.last10Average - b.last10Average;
-			})
+	import { getTrackName, getTrackImage } from '$lib/utils';
+	import type { TrackSummary } from './player-data';
+	let { data }: { data: TrackSummary[] } = $props();
+	let order = $state('average');
+	const tracks = $derived(convexStore.allTracks ?? []);
+	const sorted = $derived(
+		[...data].sort((a, b) =>
+			order === 'recent'
+				? a.recentAverage - b.recentAverage
+				: order === 'races'
+					? b.positions.length - a.positions.length
+					: a.average - b.average
+		)
 	);
-
-	let yMax = $derived(
-		chartData.reduce((acc, track) => {
-			return Math.max(acc, track.last10Average, track.allTimeAverage);
-		}, 0) + 0.5
-	);
-
-	let yMin = $derived(
-		chartData.reduce((acc, track) => {
-			return Math.min(acc, track.last10Average, track.allTimeAverage);
-		}, Infinity) - 0.5
-	);
-
-	const chartConfig = {
-		allTimeAverage: { label: 'All Time Average', color: '#00bc7d' },
-		last10Average: { label: 'Last 10 Average', color: '#f6cc30' }
-	} satisfies Chart.ChartConfig;
-	let context = $state<ChartContextValue>();
 </script>
 
-<Card.Root>
-	<Card.Header>
-		<div class="flex justify-between">
-			<div class="flex flex-col gap-1.5">
-				<Card.Title>Track Averages</Card.Title>
-				<Card.Description
-					>All time average in <span class="font-medium text-[#00bc7d]">green</span> and average of
-					last 10 races in
-					<span class="font-medium text-[#f6cc30]">yellow</span></Card.Description
+<section aria-labelledby="tracks-heading">
+	<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
+		<div>
+			<h2 id="tracks-heading" class="font-title text-lg">Track averages</h2>
+			<p class="text-muted-foreground mt-2 text-sm">
+				Lower is better. Tracks are grouped by the finish track.
+			</p>
+		</div>
+		<label class="flex items-center gap-2 text-sm"
+			>Sort by
+			<select
+				bind:value={order}
+				class="bg-background border-input focus-visible:ring-ring h-9 rounded-md border px-3 focus-visible:ring-2"
+			>
+				<option value="average">All-time average</option>
+				<option value="recent">Last 10 average</option>
+				<option value="races">Most raced</option>
+			</select>
+		</label>
+	</div>
+	<div class="text-muted-foreground mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+		<span class="flex items-center gap-2"
+			><span class="bg-foreground h-2 w-5 rounded-xs"></span>All time</span
+		>
+		<span class="flex items-center gap-2"
+			><span class="bg-lapita h-2 w-5 rounded-xs"></span>Last 10, or available races</span
+		>
+	</div>
+	{#if !data.length}
+		<p class="text-muted-foreground py-10">
+			Track averages appear after the first recorded finish.
+		</p>
+	{:else}
+		<div class="grid gap-x-10 md:grid-cols-2">
+			{#each sorted as track (track.trackEndId)}
+				<a
+					href={resolve(`/track-stats?track=${track.trackEndId}`)}
+					class="hover:bg-muted focus-visible:ring-ring grid grid-cols-[2.5rem_1fr] items-center gap-3 rounded-sm border-b py-4 focus-visible:ring-2"
 				>
-			</div>
-			<div class="flex items-center gap-2 text-sm">
-				<div class="text-muted-foreground">Order by</div>
-				<div>
-					<Tabs.Root bind:value={tab}>
-						<Tabs.List>
-							<Tabs.Trigger value="average">Average</Tabs.Trigger>
-							<Tabs.Trigger value="last10">Last 10</Tabs.Trigger>
-						</Tabs.List>
-					</Tabs.Root>
-				</div>
-			</div>
-		</div></Card.Header
-	>
-	<Card.Content>
-		<ScrollArea class="w-full rounded border pb-2" orientation="horizontal">
-			<Chart.Container config={chartConfig} class="h-64 w-[1200px]">
-				<BarChart
-					bind:context
-					data={chartData}
-					xScale={scaleBand().padding(0.25)}
-					x="name"
-					axis="x"
-					series={[
-						{
-							key: 'allTimeAverage',
-							label: 'All Time Average',
-							color: chartConfig.allTimeAverage.color
-						},
-						{
-							key: 'last10Average',
-							label: 'Last 10 Average',
-							color: chartConfig.last10Average.color
-						}
-					]}
-					x1Scale={scaleBand().paddingInner(0.2)}
-					seriesLayout="group"
-					rule={false}
-					yDomain={[yMin, yMax]}
-					props={{
-						bars: {
-							stroke: 'none',
-							strokeWidth: 0,
-							rounded: 'top',
-							// use the height of the chart to animate the bars
-							initialY: context?.height,
-							initialHeight: 0,
-							motion: {
-								y: { type: 'tween', duration: 500, easing: cubicInOut },
-								height: { type: 'tween', duration: 500, easing: cubicInOut }
-							}
-						},
-						highlight: { area: { fill: 'none' } },
-						xAxis: {
-							format: (d) =>
-								d
-									.match(/(^|\s)\b(\w)/g)
-									.map((m) => m.trim().charAt(0))
-									.join('')
-						}
-					}}
-				>
-					{#snippet tooltip()}
-						<Chart.Tooltip />
-					{/snippet}
-				</BarChart>
-			</Chart.Container>
-		</ScrollArea>
-	</Card.Content>
-</Card.Root>
+					<img
+						src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
+						alt=""
+						loading="lazy"
+						class="size-10 object-contain"
+					/>
+					<div class="min-w-0">
+						<div class="mb-2 flex items-baseline justify-between gap-2">
+							<span class="text-sm font-medium">{getTrackName(tracks, track.trackEndId)}</span>
+							<span class="text-muted-foreground shrink-0 text-xs"
+								>{track.positions.length} races</span
+							>
+						</div>
+						<div
+							class="grid grid-cols-[1fr_2.5rem] items-center gap-x-3 gap-y-1 text-xs tabular-nums"
+						>
+							<div class="bg-muted h-2 rounded-xs">
+								<div
+									class="bg-foreground h-full rounded-xs"
+									style:width={`${(track.average / 24) * 100}%`}
+								></div>
+							</div>
+							<span class="text-right"
+								><span class="sr-only">All time: </span>{track.average.toFixed(2)}</span
+							>
+							<div class="bg-muted h-2 rounded-xs">
+								<div
+									class="bg-lapita h-full rounded-xs"
+									style:width={`${(track.recentAverage / 24) * 100}%`}
+								></div>
+							</div>
+							<span class="text-right"
+								><span class="sr-only">Recent: </span>{track.recentAverage.toFixed(2)}</span
+							>
+						</div>
+					</div>
+				</a>
+			{/each}
+		</div>
+		<p class="text-muted-foreground mt-5 text-xs">
+			Bars use the same 1–24 finishing-position scale. Select a track to explore its stats.
+		</p>
+	{/if}
+</section>

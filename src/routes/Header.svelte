@@ -1,97 +1,53 @@
-<script>
-	// Props for customization
-	export let title = 'Your Brand';
-	export let subtitle = 'Welcome to our innovative platform where creativity meets functionality';
-	export let buttonText = 'Get Started';
-	export let leftColor = '#fdcf32';
-	export let rightColor = 'oklch(20.5% 0 0)';
-	export let height = '24rem'; // 384px equivalent
-</script>
-
-<header
-	class="diagonal-split hidden w-full items-center justify-center lg:flex"
-	style="height: {height}; --left-color: {leftColor}; --right-color: {rightColor};"
->
-	<div class="header-content flex items-center gap-4 px-8 text-center">
-		<img src="/lapita-logo.png" alt="lapita" class="h-64 w-64" />
-		<div class="font-title text-lapita text-9xl italic">lapita</div>
-	</div>
-</header>
-
-<header
-	class="diagonal-split-mobile flex w-full items-center justify-center bg-neutral-900 lg:hidden"
-	style="height: 8rem; --left-color: {leftColor}; --right-color: {rightColor};"
->
-	<div class="header-content flex items-center gap-4 px-8 text-center">
-		<img src="/lapita-logo.png" alt="lapita" class="h-24 w-24" />
-		<div class="font-title text-lapita text-6xl italic">lapita</div>
+<header class="brand-banner" aria-label="Lapita">
+	<div class="brand-lockup">
+		<img src="/lapita-logo.png" alt="" class="brand-logo" />
+		<span class="font-title text-lapita italic">lapita</span>
 	</div>
 </header>
 
 <style>
-	.diagonal-split {
+	.brand-banner {
 		position: relative;
+		display: flex;
+		min-height: 12rem;
+		align-items: center;
+		justify-content: center;
 		overflow: hidden;
+		background: #262626;
 	}
-
-	.diagonal-split::before {
+	.brand-banner::before {
 		content: '';
 		position: absolute;
-		top: 0;
-		left: 0;
-		width: 55%;
-		height: 100%;
-		background-color: var(--left-color);
-		clip-path: polygon(0 0, 78.5% 0, 70% 100%, 0 100%);
-		z-index: 1;
+		inset: 0;
+		background: var(--color-lapita);
+		clip-path: polygon(0 0, 42% 0, 36% 100%, 0 100%);
 	}
-
-	.diagonal-split::after {
-		content: '';
-		position: absolute;
-		top: 0;
-		right: 0;
-		width: 100%;
-		height: 100%;
-		background-color: var(--right-color);
-		z-index: 0;
-	}
-
-	.header-content {
+	.brand-lockup {
 		position: relative;
-		z-index: 10;
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		font-size: clamp(3rem, 7vw, 5rem);
+		line-height: 1;
 	}
-
-	.diagonal-split-mobile {
-		position: relative;
-		overflow: hidden;
+	.brand-logo {
+		width: 9rem;
+		height: 9rem;
+		object-fit: contain;
 	}
-
-	.diagonal-split-mobile::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		width: 40%;
-		height: 100%;
-		background-color: var(--left-color);
-		clip-path: polygon(0 0, 78.5% 0, 70% 100%, 0 100%);
-		z-index: 1;
-	}
-
-	.diagonal-split-mobile::after {
-		content: '';
-		position: absolute;
-		top: 0;
-		right: 0;
-		width: 100%;
-		height: 100%;
-		background-color: var(--right-color);
-		z-index: 0;
-	}
-
-	.header-content {
-		position: relative;
-		z-index: 10;
+	@media (max-width: 639px) {
+		.brand-banner {
+			min-height: 8rem;
+		}
+		.brand-banner::before {
+			clip-path: polygon(0 0, 32% 0, 26% 100%, 0 100%);
+		}
+		.brand-logo {
+			width: 5.5rem;
+			height: 5.5rem;
+		}
+		.brand-lockup {
+			gap: 0.75rem;
+		}
 	}
 </style>

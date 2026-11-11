@@ -44,7 +44,8 @@ export default defineSchema({
 		transition: v.boolean()
 	})
 		.index('grandPrixId', ['grandPrixId'])
-		.index('trackId', ['trackStartId', 'trackEndId']),
+		.index('trackId', ['trackStartId', 'trackEndId'])
+		.index('trackEndId', ['trackEndId']),
 
 	results: defineTable({
 		position: v.optional(v.union(v.null(), v.number())),

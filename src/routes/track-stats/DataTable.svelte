@@ -14,13 +14,15 @@
 	};
 
 	let { data, columns }: DataTableProps<TData, TValue> = $props();
-	let sorting = $state<SortingState>([]);
+	let sorting = $state<SortingState>([{ id: 'count', desc: true }]);
 
 	const table = createSvelteTable({
 		get data() {
 			return data;
 		},
-		columns,
+		get columns() {
+			return columns;
+		},
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
 		onSortingChange: (updater) => {
@@ -38,13 +40,22 @@
 	});
 </script>
 
-<div class="overflow-hidden rounded-md border">
-	<Table.Root>
-		<Table.Header class="rounded-t-md bg-black/30">
+<div class="bg-card overflow-hidden rounded-md border">
+	<Table.Root class="min-w-[800px]">
+		<Table.Header class="bg-muted/50">
 			{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
 				<Table.Row>
 					{#each headerGroup.headers as header (header.id)}
-						<Table.Head class="text-center">
+						<Table.Head
+							class={header.column.id === 'trackName' || header.column.id === 'bestPlayerName'
+								? 'px-4 text-left'
+								: 'px-4 text-right'}
+							aria-sort={header.column.getIsSorted() === 'asc'
+								? 'ascending'
+								: header.column.getIsSorted() === 'desc'
+									? 'descending'
+									: undefined}
+						>
 							{#if !header.isPlaceholder}
 								<FlexRender
 									content={header.column.columnDef.header}
@@ -58,16 +69,22 @@
 		</Table.Header>
 		<Table.Body>
 			{#each table.getRowModel().rows as row (row.id)}
-				<Table.Row data-state={row.getIsSelected() && 'selected'} class="hover:bg-white/15">
+				<Table.Row data-state={row.getIsSelected() && 'selected'} class="hover:bg-muted/50">
 					{#each row.getVisibleCells() as cell (cell.id)}
-						<Table.Cell class="text-center">
+						<Table.Cell
+							class={cell.column.id === 'trackName' || cell.column.id === 'bestPlayerName'
+								? 'px-4 py-3 text-left'
+								: 'px-4 py-3 text-right tabular-nums'}
+						>
 							<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
 						</Table.Cell>
 					{/each}
 				</Table.Row>
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={columns.length} class="h-24 text-center">No results.</Table.Cell>
+					<Table.Cell colspan={columns.length} class="h-24 text-center"
+						>No tracks available yet.</Table.Cell
+					>
 				</Table.Row>
 			{/each}
 		</Table.Body>

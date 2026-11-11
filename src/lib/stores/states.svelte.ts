@@ -1,4 +1,4 @@
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
+import { convexUrl } from '$lib/convex-url';
 import { ConvexClient } from 'convex/browser';
 import { api } from '../../convex/_generated/api';
 import type { FunctionReturnType } from 'convex/server';
@@ -23,7 +23,7 @@ class ConvexStore {
 		);
 	}
 
-	client = new ConvexClient(PUBLIC_CONVEX_URL);
+	client = new ConvexClient(convexUrl);
 
 	constructor() {
 		this.loadData(); // Load data immediately when store is created

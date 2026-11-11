@@ -9,7 +9,7 @@
 		getStatColour
 	} from '$lib/utils';
 	import { scaleBand } from 'd3-scale';
-	import { BarChart, type ChartContextValue } from 'layerchart';
+	import { BarChart, type ChartState } from 'layerchart';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -63,7 +63,7 @@
 		character: { label: 'character', color: 'var(--chart-2)' },
 		kart: { label: 'kart', color: '#f5cd30' }
 	} satisfies Chart.ChartConfig;
-	let context = $state<ChartContextValue>();
+	let context = $state<ChartState>();
 </script>
 
 <div class="flex items-center gap-2">

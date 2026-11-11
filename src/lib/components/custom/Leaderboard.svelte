@@ -3,9 +3,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 
 	import PodiumIcon from '../icon/PodiumIcon.svelte';
-	import FirstMedalIcon from '../icon/FirstMedalIcon.svelte';
-	import SecondMedalIcon from '../icon/SecondMedalIcon.svelte';
-	import ThirdMedalIcon from '../icon/ThirdMedalIcon.svelte';
+	import PositionBadge from './PositionBadge.svelte';
 	let {
 		leaderboard
 	}: {
@@ -44,21 +42,7 @@
 			<Table.Body>
 				{#each leaderboard.standings as { username, position, character, score }, i (i)}
 					<Table.Row>
-						{#if position === 1}
-							<Table.Cell class="flex justify-center text-center text-lg text-amber-300"
-								><FirstMedalIcon /></Table.Cell
-							>
-						{:else if position === 2}
-							<Table.Cell class="flex justify-center text-center text-lg text-gray-300"
-								><SecondMedalIcon /></Table.Cell
-							>
-						{:else if position === 3}
-							<Table.Cell class="flex justify-center text-lg text-yellow-700"
-								><ThirdMedalIcon /></Table.Cell
-							>
-						{:else}
-							<Table.Cell class="flex justify-center font-medium">{position}</Table.Cell>
-						{/if}
+						<Table.Cell class="text-center"><PositionBadge {position} /></Table.Cell>
 						<Table.Cell>{username}</Table.Cell>
 						<Table.Cell class="truncate">{character}</Table.Cell>
 						<Table.Cell>{score}</Table.Cell>

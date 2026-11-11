@@ -1,10 +1,10 @@
 <script lang="ts">
 	import '../app.css';
 	import { ModeWatcher } from 'mode-watcher';
-	import { PUBLIC_CONVEX_URL } from '$env/static/public';
+	import { convexUrl } from '$lib/convex-url';
 	import { setupConvex } from 'convex-svelte';
 
-	setupConvex(PUBLIC_CONVEX_URL);
+	setupConvex(convexUrl);
 	let { children } = $props();
 
 	import Navbar from '$lib/components/custom/Navbar.svelte';

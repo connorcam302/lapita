@@ -1,335 +1,561 @@
 <script lang="ts">
-	import { convexStore } from '$lib/stores/states.svelte.js';
+	import { resolve } from '$app/paths';
+	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
+	import { convexStore } from '$lib/stores/states.svelte';
 	import {
-		getPlayerName,
 		getCharacterImage,
 		getKartImage,
 		getCharacterName,
 		getKartName,
 		getTrackImage,
-		getTrackName,
-		getPositionColour,
-		analyzeCharacterKartCombinations
-	} from '$lib/utils.js';
+		getTrackName
+	} from '$lib/utils';
 	import { useQuery } from 'convex-svelte';
-	import { api } from '../../../convex/_generated/api.js';
-	import { fade } from 'svelte/transition';
-	import { cubicIn } from 'svelte/easing';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
-	import TrackBars from './TrackBars.svelte';
-	import CharacterKartStats from '$lib/components/custom/CharacterKartStats.svelte';
+	import { api } from '../../../convex/_generated/api';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
-	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
-	import { Separator } from '$lib/components/ui/separator/index.js';
 	import Button from '$lib/components/ui/button/button.svelte';
+	import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import TrackBars from './TrackBars.svelte';
+	import TrackRivals from './TrackRivals.svelte';
+	import { summarizePlayer } from './player-data';
 
 	let { data } = $props();
-
-	let { userDetails } = $derived(data);
-
-	let allCharacters = $derived(convexStore.allCharacters);
-	let allUsers = $derived(convexStore.allUsers);
-	let allKarts = $derived(convexStore.allKarts);
-	let allTracks = $derived(convexStore.allTracks);
-
-	const userName = $derived(getPlayerName(allUsers, userDetails._id));
-
-	const resultsData = $derived(
-		userDetails && useQuery(api.results.getPlayer, { userId: userDetails._id })
+	const user = $derived(data.userDetails);
+	const resultsQuery = useQuery(api.results.getPlayer, () =>
+		user ? { userId: user._id } : 'skip'
 	);
-
-	const gpResults = $derived(
-		userDetails && useQuery(api.gps.getPlayerResults, { userId: userDetails._id })
-	);
-
-	const characterKartStats = $derived(
-		!resultsData?.isLoading &&
-			resultsData?.data &&
-			!gpResults?.isLoading &&
-			gpResults?.data &&
-			analyzeCharacterKartCombinations(resultsData?.data, gpResults?.data)
-	);
-
-	const characterKartCombinations = $derived(
-		!resultsData?.isLoading &&
-			resultsData?.data &&
-			Object.entries(
-				resultsData.data.reduce((acc, obj) => {
-					// Create a unique key for each character-kart combination
-					const combinationKey = `${obj.characterId}|${obj.kartId}`;
-					acc[combinationKey] = (acc[combinationKey] || 0) + 1;
-					return acc;
-				}, {})
+	const gpQuery = useQuery(api.gps.getPlayerResults, () => (user ? { userId: user._id } : 'skip'));
+	const recordsQuery = useQuery(api.records.get, () => (user ? {} : 'skip'));
+	const personalRecords = $derived(
+		[
+			{
+				key: 'gpScore',
+				label: 'Best GP score',
+				unit: 'pts',
+				empty: 'No completed Grand Prix yet.'
+			},
+			{
+				key: 'winStreak',
+				label: 'Longest winning streak',
+				unit: 'wins in a row',
+				empty: 'No winning streak yet.'
+			},
+			{
+				key: 'podiums',
+				label: 'Podium finishes',
+				unit: 'top-three finishes',
+				empty: 'No podium finishes yet.'
+			},
+			{
+				key: 'gpWins',
+				label: 'Grand Prix wins',
+				unit: 'GP wins',
+				empty: 'No completed GP wins yet.'
+			}
+		].map((record) => ({
+			...record,
+			entry: recordsQuery.data?.[record.key as 'gpScore' | 'winStreak' | 'podiums' | 'gpWins'].find(
+				(entry) => entry.userId === user?._id
 			)
-				.map(([combinationKey, count]) => {
-					const [characterId, kartId] = combinationKey.split('|');
-					return { characterId, kartId, count };
-				})
-				.filter(({ characterId, kartId }) => characterId !== 'undefined' && kartId !== 'undefined')
-				.sort((a, b) => b.count - a.count)
+		}))
 	);
-
-	const trackCounts = $derived(
-		!resultsData?.isLoading &&
-			resultsData?.data &&
-			Object.entries(
-				resultsData.data.reduce((acc, obj) => {
-					if (!acc[obj.trackEndId]) {
-						acc[obj.trackEndId] = [];
-					}
-					acc[obj.trackEndId] = [...acc[obj.trackEndId], obj.position];
-					return acc;
-				}, {})
-			)
-				.map(([trackEndId, positions]) => ({ trackEndId, positions }))
-				.map(({ trackEndId, positions }) => ({
-					trackEndId,
-					positions,
-					average: positions.reduce((acc, position) => acc + position, 0) / positions.length
-				}))
-				.sort((a, b) => a.average - b.average)
+	const characters = $derived(convexStore.allCharacters ?? []);
+	const karts = $derived(convexStore.allKarts ?? []);
+	const tracks = $derived(convexStore.allTracks ?? []);
+	const profile = $derived(summarizePlayer(resultsQuery.data ?? [], gpQuery.data ?? []));
+	const standings = $derived([...(gpQuery.data ?? [])].sort((a, b) => b.order - a.order));
+	const favourite = $derived(profile.combinations[0]);
+	const wins = $derived(profile.finished.filter((result) => result.position === 1).length);
+	const gpWins = $derived(standings.filter((gp) => gp.position === 1).length);
+	const highlights = $derived(
+		profile.tracks.length
+			? [
+					{ label: 'Best average', track: profile.tracks[0] },
+					{ label: 'Toughest track', track: profile.tracks[profile.tracks.length - 1] }
+				]
+			: []
 	);
-	$inspect(trackCounts);
-
-	let page = $state(1);
-
-	let initialLoading = $derived(
-		resultsData?.isLoading ||
-			gpResults?.isLoading ||
-			!characterKartStats ||
-			!trackCounts ||
-			!characterKartCombinations
+	let activeTab = $state('overview');
+	let historyType = $state('gps');
+	let historyLimit = $state(20);
+	let comboOrder = $state('races');
+	const combinations = $derived(
+		[...profile.combinations].sort((a, b) =>
+			comboOrder === 'average'
+				? a.averagePlacement - b.averagePlacement
+				: comboOrder === 'wins'
+					? b.gpWins - a.gpWins
+					: b.raceCount - a.raceCount
+		)
 	);
-	let errors = $derived([resultsData].map(({ error }) => error).filter((error) => error));
+	const historyCount = $derived(historyType === 'gps' ? standings.length : profile.finished.length);
+	$effect(() => {
+		if (!user?._id) return;
+		historyLimit = 20;
+		activeTab = 'overview';
+	});
 </script>
 
-<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
-	{#if initialLoading}
-		<div
-			class="flex h-dvh items-center justify-center"
-			transition:fade|global={{ duration: 500, easing: cubicIn }}
-		>
-			<img src="/lapita-logo.png" class="w-48 animate-bounce" alt="lapita-logo" />
-		</div>
-	{:else if errors.length}
-		<div>Something went wrong. Looks like this:</div>
-		<div class="flex flex-col gap-8">
-			{#each errors as error}
-				<div class="flex flex-col gap-2">
-					<div class="font-medium">{error!.name}</div>
-					<div class="text-sm">{error!.message}</div>
-					<div class="text-sm">{error!.cause}</div>
-					<div class="text-sm">{error!.stack}</div>
-				</div>
-			{/each}
-		</div>
-	{:else}
-		<div class="mx-auto max-w-4xl py-4" transition:fade|global={{ duration: 500, easing: cubicIn }}>
-			<div class="flex flex-col gap-2">
-				<div class="flex flex-wrap justify-between">
-					<Card.Root>
-						<Card.Header>
-							<Card.Title class="font-title text-2xl">
-								{userName}
-							</Card.Title>
-						</Card.Header>
-						<Card.Content>
-							<div class="relative w-64">
-								<img
-									src={`/karts/${getKartImage(allKarts, characterKartCombinations[0].kartId)}.png`}
-									class="absolute bottom-0 left-1/2 w-60 -translate-x-1/2 transform opacity-60"
-									alt={characterKartCombinations[0].kartId}
-								/>
-								<img
-									src={`/characters/${getCharacterImage(allCharacters, characterKartCombinations[0].characterId)}.png`}
-									class="relative mx-auto h-40"
-									alt={characterKartCombinations[0].characterId}
-								/>
-							</div>
-						</Card.Content>
-					</Card.Root>
-					<Card.Root>
-						<Card.Content>
-							<div class="flex gap-4">
-								<div class="flex flex-col gap-4">
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Races Complete</div>
-										<div>
-											{resultsData.data.length}
-										</div>
-									</div>
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Overall Average</div>
-										<div
-											class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
-											style="background-color: {getPositionColour(trackCounts[0].average)}"
-										>
-											{(
-												resultsData.data.reduce((acc, result) => acc + result.position, 0) /
-												resultsData.data.length
-											).toFixed(2) || '-'}
-										</div>
-									</div>
+<svelte:head>
+	<title>{user?.name ?? 'Player'} · Lapita</title>
+	<meta
+		name="description"
+		content={`Race results, favourite combinations and track averages for ${user?.name ?? 'this player'}.`}
+	/>
+</svelte:head>
 
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Best Track</div>
-										<div>
-											{getTrackName(allTracks, trackCounts[0].trackEndId)}
-										</div>
-									</div>
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Worst Track</div>
-										<div>
-											{getTrackName(allTracks, trackCounts[trackCounts.length - 1].trackEndId)}
-										</div>
-									</div>
-								</div>
-								<div class="flex flex-col gap-4">
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Grand Prix Wins</div>
-										<div>
-											{!gpResults?.isLoading &&
-												gpResults?.data.filter((gpResult) => gpResult.position === 1).length}
-										</div>
-									</div>
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Most Points</div>
-										<div>
-											{!gpResults?.isLoading &&
-												gpResults?.data?.slice().sort((a, b) => b.points - a.points)[0].points}
-										</div>
-									</div>
-									<div class="flex flex-col gap-0.5">
-										<div class="text-sm text-neutral-400">Total Wins</div>
-										<div>
-											{resultsData.data.filter((result) => result.position === 1).length}
-										</div>
-									</div>
-								</div>
-							</div>
-						</Card.Content>
-					</Card.Root>
+<main class="profile mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
+	<a
+		href={resolve('/')}
+		class="text-muted-foreground hover:text-foreground focus-visible:ring-ring mb-6 inline-flex items-center gap-2 rounded-sm text-sm focus-visible:ring-2"
+		><ArrowLeft class="size-4" />Grand Prix</a
+	>
+	{#if !user}
+		<h1 class="font-title text-2xl">Player not found</h1>
+		<p class="text-muted-foreground mt-3">Choose a player from the home page or search.</p>
+	{:else if resultsQuery.error || gpQuery.error}
+		<section role="alert" class="py-10">
+			<h1 class="font-title text-xl">Could not load {user.name}’s profile</h1>
+			<p class="text-muted-foreground mt-3">Check your connection and reload to try again.</p>
+			<Button variant="outline" class="mt-5" onclick={() => window.location.reload()}
+				>Reload profile</Button
+			>
+		</section>
+	{:else if resultsQuery.isLoading || gpQuery.isLoading}
+		<h1 class="font-title text-3xl">{user.name}</h1>
+		<p class="text-muted-foreground py-12" role="status">Loading race record…</p>
+	{:else}
+		<header class="bg-card overflow-hidden rounded-md border">
+			<div class="grid grid-cols-[minmax(0,1fr)_6rem] sm:grid-cols-[1fr_18rem]">
+				<div class="p-5 sm:p-8">
+					<h1 class="font-title text-3xl sm:text-4xl">{user.name}</h1>
+					<p class="text-muted-foreground mt-3">
+						{standings.length} Grand Prix · {profile.tracks.length} tracks raced
+					</p>
+					{#if favourite}
+						<div class="mt-7">
+							<p class="text-muted-foreground text-sm">Most-used combination</p>
+							<a
+								class="focus-visible:ring-ring mt-1 inline-flex items-center gap-2 rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2"
+								href={resolve(
+									`/stats/calculator?character=${favourite.characterId}&kart=${favourite.kartId}`
+								)}
+							>
+								{getCharacterName(characters, favourite.characterId)} + {getKartName(
+									karts,
+									favourite.kartId
+								)}<ArrowUpRight class="size-4 shrink-0" />
+							</a>
+							<p class="text-muted-foreground mt-1 text-sm">
+								{favourite.raceCount} races · {Math.round(
+									(favourite.raceCount / profile.finished.length) * 100
+								)}% of recorded finishes
+							</p>
+						</div>
+					{:else}
+						<p class="text-muted-foreground mt-7">
+							A favourite combination will appear as races are recorded.
+						</p>
+					{/if}
 				</div>
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>Character & Kart Combination Stats</Card.Title>
-						<Card.Description>Based on {resultsData.data.length} races.</Card.Description>
-					</Card.Header>
-					<Card.Content>
-						<ScrollArea class="h-96">
-							<Table.Root>
-								<Table.Header>
-									<Table.Row>
-										<Table.Head class="text-center">Character</Table.Head>
-										<Table.Head class="text-center">Kart</Table.Head>
-										<Table.Head class="text-center">Races</Table.Head>
-										<Table.Head class="text-center">Avg Pos</Table.Head>
-										<Table.Head class="text-center">GP Wins</Table.Head>
-										<Table.Head class="text-center">Avg Points</Table.Head>
-										<Table.Head class="text-center">Best</Table.Head>
-										<Table.Head class="text-center">Worst</Table.Head>
-									</Table.Row>
-								</Table.Header>
-								<Table.Body>
-									{#key characterKartStats}
-										{#if characterKartStats}
-											{#each characterKartStats as characterKartStat, i (i)}
-												<Table.Row>
-													<Table.Cell class="text-center"
-														><img
-															src={`/characters/${getCharacterImage(allCharacters, characterKartStat.characterId)}.png`}
-															alt={characterKartStat.characterId}
-															class="mx-auto max-h-10 max-w-8"
-														/></Table.Cell
-													>
-													<Table.Cell class="text-center"
-														><img
-															src={`/karts/${getKartImage(allKarts, characterKartStat.kartId)}.png`}
-															alt={characterKartStat.kartId}
-															class="mx-auto max-w-16"
-														/></Table.Cell
-													>
-													<Table.Cell class="text-center">{characterKartStat.raceCount}</Table.Cell>
-													<Table.Cell class="text-center"
-														>{characterKartStat.averagePlacement.toFixed(2)}</Table.Cell
-													>
-													<Table.Cell class="text-center">{characterKartStat.gpWins}</Table.Cell>
-													<Table.Cell class="text-center"
-														>{characterKartStat.averageGpPoints.toFixed(0)}</Table.Cell
-													>
-													<Table.Cell
-														>{getTrackName(allTracks, characterKartStat.bestTrack)}</Table.Cell
-													>
-													<Table.Cell
-														>{getTrackName(allTracks, characterKartStat.worstTrack)}</Table.Cell
-													>
-												</Table.Row>
-											{/each}
-										{/if}
-									{/key}
-								</Table.Body>
-							</Table.Root>
-						</ScrollArea>
-					</Card.Content>
-				</Card.Root>
-				<TrackBars data={trackCounts} />
-				<div class="flex flex-col items-center gap-2">
-					{#each resultsData.data?.slice(0, 30 * page) as result, i (i)}
-						<a href={`/grandprix/${result.grandPrixId}`}>
-							<Card.Root>
-								<Card.Header>
-									<Card.Title class="flex justify-between">
-										<div>{getTrackName(allTracks, result.trackEndId)}</div>
-										<a href={`/grandprix/${result.grandPrixId}`}>GP {result.grandPrixOrder}</a>
-									</Card.Title>
-								</Card.Header>
-								<Card.Content>
-									<div class="flex items-center justify-start gap-4">
-										<img
-											src={`/tracks/icons/${getTrackImage(allTracks, result.trackEndId)}.png`}
-											alt="track"
-											class="max-w-16"
-										/>
-										<div class="h-16">
-											<Separator orientation="vertical" />
-										</div>
-										<img
-											src={`/characters/${getCharacterImage(allCharacters, result.characterId)}.png`}
-											alt={result.characterId}
-											class="max-h-10 max-w-8"
-										/>
-										<img
-											src={`/karts/${getKartImage(allKarts, result.kartId)}.png`}
-											alt={result.kartId}
-											class="max-h-10 max-w-16"
-										/>
-										<div class="h-16">
-											<Separator orientation="vertical" />
-										</div>
-										<div
-											class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
-											style="background-color: {getPositionColour(result.position)}"
-										>
-											{result.position}
-										</div>
-									</div>
-								</Card.Content>
-							</Card.Root>
-						</a>
-					{/each}
-					<div>
-						<Button
-							variant="outline"
-							onclick={() => {
-								page = page + 1;
-							}}
-						>
-							Load More
-						</Button>
+				{#if favourite}
+					<div
+						class="bg-lapita/15 relative flex items-center justify-center overflow-hidden sm:min-h-60"
+						aria-hidden="true"
+					>
+						<img
+							src={`/karts/${getKartImage(karts, favourite.kartId)}.png`}
+							alt=""
+							class="absolute bottom-12 h-20 w-28 object-contain opacity-60 sm:bottom-6 sm:h-32 sm:w-60"
+						/>
+						<img
+							src={`/characters/${getCharacterImage(characters, favourite.characterId)}.png`}
+							alt=""
+							class="relative h-28 w-24 object-contain sm:h-48 sm:w-40"
+						/>
 					</div>
-				</div>
+				{/if}
 			</div>
-		</div>
+			<dl class="bg-muted/40 grid grid-cols-2 border-t sm:grid-cols-4">
+				{#each [{ label: 'Races completed', value: profile.finished.length }, { label: 'Average finish', value: profile.average?.toFixed(2) ?? '—' }, { label: 'Race wins', value: wins }, { label: 'GP first places', value: gpWins }] as stat (stat.label)}
+					<div class="p-5 sm:px-8">
+						<dt class="text-muted-foreground text-sm">{stat.label}</dt>
+						<dd class="font-body mt-1 text-3xl font-semibold tabular-nums">{stat.value}</dd>
+					</div>
+				{/each}
+			</dl>
+		</header>
+
+		{#if !profile.finished.length}
+			<section class="py-12">
+				<h2 class="font-title text-xl">No race finishes yet</h2>
+				<p class="text-muted-foreground mt-3">
+					{user.name}’s track averages, combinations and race history will appear after a result is
+					recorded.
+				</p>
+			</section>
+		{/if}
+
+		<Tabs.Root bind:value={activeTab} class="mt-8 min-w-0 gap-7">
+			<Tabs.List
+				class="h-auto w-full min-w-0 justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 pb-2"
+				aria-label="Player profile sections"
+			>
+				{#each ['overview', 'tracks', 'rivals', 'combinations', 'history'] as section (section)}
+					<Tabs.Trigger
+						value={section}
+						class="data-[state=active]:bg-lapita dark:data-[state=active]:bg-lapita flex-1 px-2 py-2 text-xs capitalize data-[state=active]:text-black data-[state=active]:shadow-none sm:flex-none sm:px-5 sm:text-sm dark:data-[state=active]:text-black"
+						>{section === 'rivals' ? 'Track rivals' : section}</Tabs.Trigger
+					>
+				{/each}
+			</Tabs.List>
+			<Tabs.Content value="overview" class="min-w-0 space-y-10">
+				<section aria-labelledby="personal-records-heading">
+					<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+						<h2 id="personal-records-heading" class="font-title text-lg">Personal records</h2>
+						<Button variant="ghost" size="sm" href={resolve('/records')}
+							>All records<ArrowUpRight /></Button
+						>
+					</div>
+					{#if recordsQuery.error}
+						<div role="alert" class="text-muted-foreground py-4 text-sm">
+							<p>Personal records could not be loaded. Reload the page to try again.</p>
+							<Button
+								variant="outline"
+								size="sm"
+								class="mt-3"
+								onclick={() => window.location.reload()}>Reload records</Button
+							>
+						</div>
+					{:else if !recordsQuery.data}
+						<p role="status" class="text-muted-foreground py-6 text-sm">
+							Loading personal records…
+						</p>
+					{:else}
+						<dl class="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-4">
+							{#each personalRecords as record (record.key)}
+								<div class="border-b py-5">
+									<dt class="text-sm font-medium">{record.label}</dt>
+									<dd class="mt-2 flex flex-wrap items-baseline gap-2">
+										<span class="font-body text-3xl font-semibold tabular-nums"
+											>{record.entry?.value ?? (record.key === 'gpScore' ? '—' : 0)}</span
+										>
+										<span class="text-muted-foreground text-xs">{record.unit}</span>
+									</dd>
+									{#if record.entry}
+										<p class="text-muted-foreground mt-2 text-xs">
+											Rank {record.entry.rank} overall
+										</p>
+										{#if record.entry.grandPrixId}
+											<a
+												href={resolve('/grandprix/[id]', { id: record.entry.grandPrixId })}
+												class="focus-visible:ring-ring mt-2 inline-flex items-center gap-1 rounded-sm text-sm underline-offset-4 hover:underline focus-visible:ring-2"
+												>Grand Prix {record.entry.grandPrixOrder}<ArrowUpRight class="size-3" /></a
+											>
+										{/if}
+									{:else}
+										<p class="text-muted-foreground mt-2 text-xs">{record.empty}</p>
+									{/if}
+								</div>
+							{/each}
+						</dl>
+						<p class="text-muted-foreground mt-4 max-w-2xl text-xs">
+							Only races with a valid finish for every participant count. GP records require a fully
+							completed Grand Prix. Unfinished races break winning streaks; tied records share a
+							rank.
+						</p>
+					{/if}
+				</section>
+
+				<div class="grid gap-9 lg:grid-cols-2">
+					<section aria-labelledby="track-highlights">
+						<div class="mb-4 flex items-center justify-between gap-3">
+							<h2 id="track-highlights" class="font-title text-lg">On the track</h2>
+							<Button variant="ghost" size="sm" onclick={() => (activeTab = 'tracks')}
+								>All tracks<ArrowUpRight /></Button
+							>
+						</div>
+						{#each highlights as { label, track } (label)}
+							<a
+								href={resolve(`/track-stats?track=${track.trackEndId}`)}
+								class="hover:bg-muted focus-visible:ring-ring flex items-center gap-4 rounded-sm border-b py-4 focus-visible:ring-2"
+							>
+								<img
+									src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
+									alt=""
+									class="size-16 object-contain"
+								/>
+								<div class="min-w-0 flex-1">
+									<p class="text-muted-foreground text-xs">{label}</p>
+									<h3 class="mt-1 font-medium">{getTrackName(tracks, track.trackEndId)}</h3>
+									<p class="text-muted-foreground mt-1 text-xs">{track.positions.length} races</p>
+								</div>
+								<div class="text-right">
+									<p class="font-body text-2xl font-semibold tabular-nums">
+										{track.average.toFixed(2)}
+									</p>
+									<p class="text-muted-foreground text-xs">avg. finish</p>
+								</div>
+							</a>
+						{:else}<p class="text-muted-foreground py-6 text-sm">
+								No track results recorded.
+							</p>{/each}
+						<p class="text-muted-foreground mt-4 text-xs">
+							Based on all recorded finishes. Lower averages are better.
+						</p>
+					</section>
+					<section class="min-w-0" aria-labelledby="recent-gps">
+						<div class="mb-4 flex items-center justify-between gap-3">
+							<h2 id="recent-gps" class="font-title text-lg">Recent Grand Prix</h2>
+							<Button
+								variant="ghost"
+								size="sm"
+								onclick={() => {
+									historyType = 'gps';
+									activeTab = 'history';
+								}}>All results<ArrowUpRight /></Button
+							>
+						</div>
+						{@render gpTable(4)}
+						<p class="text-muted-foreground mt-4 text-xs">Standings include GPs in progress.</p>
+					</section>
+				</div>
+				<section aria-labelledby="race-heading">
+					<div class="mb-4 flex items-center justify-between gap-3">
+						<h2 id="race-heading" class="font-title text-lg">Latest race results</h2>
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={() => {
+								historyType = 'races';
+								activeTab = 'history';
+							}}>All races<ArrowUpRight /></Button
+						>
+					</div>
+					{@render raceTable(8)}
+				</section>
+			</Tabs.Content>
+			<Tabs.Content value="tracks" class="min-w-0"><TrackBars data={profile.tracks} /></Tabs.Content
+			>
+			<Tabs.Content value="rivals" class="min-w-0">
+				<TrackRivals userId={user._id} playerName={user.name} />
+			</Tabs.Content>
+			<Tabs.Content value="combinations" class="min-w-0">
+				<section aria-labelledby="combo-heading">
+					<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
+						<div>
+							<h2 id="combo-heading" class="font-title text-lg">Character & kart combinations</h2>
+							<p class="text-muted-foreground mt-2 text-sm">
+								Compare the setups behind {profile.finished.length} recorded finishes.
+							</p>
+						</div>
+						<label class="flex items-center gap-2 text-sm"
+							>Sort by<select
+								bind:value={comboOrder}
+								class="bg-background border-input focus-visible:ring-ring h-9 rounded-md border px-3 focus-visible:ring-2"
+								><option value="races">Most used</option><option value="average"
+									>Average finish</option
+								><option value="wins">GP first places</option></select
+							></label
+						>
+					</div>
+					<div class="overflow-x-auto rounded-md border">
+						<Table.Root class="min-w-[850px]">
+							<Table.Header
+								><Table.Row
+									><Table.Head class="pl-4">Combination</Table.Head><Table.Head class="text-right"
+										>Races</Table.Head
+									><Table.Head class="text-right">Avg. finish</Table.Head><Table.Head
+										class="text-right">GP firsts</Table.Head
+									><Table.Head class="text-right">Avg. GP pts</Table.Head><Table.Head
+										>Best track</Table.Head
+									><Table.Head>Worst track</Table.Head></Table.Row
+								></Table.Header
+							>
+							<Table.Body>
+								{#each combinations as combo (`${combo.characterId}|${combo.kartId}`)}
+									<Table.Row>
+										<Table.Cell class="pl-4"
+											><a
+												href={resolve(
+													`/stats/calculator?character=${combo.characterId}&kart=${combo.kartId}`
+												)}
+												class="focus-visible:ring-ring flex items-center gap-3 rounded-sm hover:underline focus-visible:ring-2"
+												><img
+													src={`/characters/${getCharacterImage(characters, combo.characterId)}.png`}
+													alt=""
+													loading="lazy"
+													class="h-12 w-8 object-contain"
+												/><img
+													src={`/karts/${getKartImage(karts, combo.kartId)}.png`}
+													alt=""
+													loading="lazy"
+													class="h-10 w-14 object-contain"
+												/>
+												<div>
+													<p class="font-medium">
+														{getCharacterName(characters, combo.characterId)}
+													</p>
+													<p class="text-muted-foreground text-xs">
+														{getKartName(karts, combo.kartId)}
+													</p>
+												</div></a
+											></Table.Cell
+										>
+										<Table.Cell class="text-right tabular-nums">{combo.raceCount}</Table.Cell
+										><Table.Cell class="text-right font-medium tabular-nums"
+											>{combo.averagePlacement.toFixed(2)}</Table.Cell
+										><Table.Cell class="text-right tabular-nums">{combo.gpWins}</Table.Cell
+										><Table.Cell class="text-right tabular-nums"
+											>{combo.averageGpPoints?.toFixed(0) ?? '—'}</Table.Cell
+										><Table.Cell>{getTrackName(tracks, combo.bestTrack)}</Table.Cell><Table.Cell
+											>{getTrackName(tracks, combo.worstTrack)}</Table.Cell
+										>
+									</Table.Row>
+								{:else}<Table.Row
+										><Table.Cell colspan={7} class="text-muted-foreground py-10 text-center"
+											>No character and kart combinations recorded yet.</Table.Cell
+										></Table.Row
+									>{/each}
+							</Table.Body>
+						</Table.Root>
+					</div>
+					<p class="text-muted-foreground mt-4 max-w-2xl text-xs">
+						GP stats are credited to the most-used combination in each GP and include current
+						standings. Combination track rankings use the starting track. Select a combination to
+						open the calculator.
+					</p>
+				</section>
+			</Tabs.Content>
+			<Tabs.Content value="history" class="min-w-0">
+				<section aria-labelledby="history-heading">
+					<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
+						<div>
+							<h2 id="history-heading" class="font-title text-lg">Race history</h2>
+							<p class="text-muted-foreground mt-2 text-sm">
+								Newest Grand Prix first. Select a result to open it.
+							</p>
+						</div>
+						<label class="flex items-center gap-2 text-sm"
+							>Show<select
+								bind:value={historyType}
+								onchange={() => (historyLimit = 20)}
+								class="bg-background border-input focus-visible:ring-ring h-9 rounded-md border px-3 focus-visible:ring-2"
+								><option value="gps">Grand Prix</option><option value="races">Races</option></select
+							></label
+						>
+					</div>
+					{#if historyType === 'gps'}{@render gpTable(historyLimit)}
+						<p class="text-muted-foreground mt-4 text-xs">
+							Standings include Grand Prix in progress.
+						</p>{:else}{@render raceTable(historyLimit)}{/if}
+					<div class="mt-5 flex flex-wrap items-center justify-between gap-4">
+						<p class="text-muted-foreground text-sm">
+							Showing {Math.min(historyLimit, historyCount)} of {historyCount}
+							{historyType === 'gps' ? 'Grand Prix' : 'races'}
+						</p>
+						{#if historyLimit < historyCount}<Button
+								variant="outline"
+								onclick={() => (historyLimit += 20)}
+								>Load more {historyType === 'gps' ? 'Grand Prix' : 'races'}</Button
+							>{/if}
+					</div>
+				</section>
+			</Tabs.Content>
+		</Tabs.Root>
 	{/if}
-</div>
+</main>
+
+{#snippet gpTable(limit: number)}
+	<div class="overflow-x-auto rounded-md border">
+		<Table.Root>
+			<Table.Header
+				><Table.Row
+					><Table.Head class="pl-4">Grand Prix</Table.Head><Table.Head class="text-right"
+						>Place</Table.Head
+					><Table.Head class="pr-4 text-right">Points</Table.Head></Table.Row
+				></Table.Header
+			>
+			<Table.Body
+				>{#each standings.slice(0, limit) as gp (gp.grandPrixId)}<Table.Row
+						><Table.Cell class="pl-4"
+							><a
+								class="focus-visible:ring-ring rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2"
+								href={resolve('/grandprix/[id]', { id: gp.grandPrixId })}>Grand Prix {gp.order}</a
+							></Table.Cell
+						><Table.Cell class="text-right"><PositionBadge position={gp.position} /></Table.Cell
+						><Table.Cell class="pr-4 text-right tabular-nums">{gp.points ?? '—'}</Table.Cell
+						></Table.Row
+					>{:else}<Table.Row
+						><Table.Cell colspan={3} class="text-muted-foreground py-8 text-center"
+							>No Grand Prix yet.</Table.Cell
+						></Table.Row
+					>{/each}</Table.Body
+			>
+		</Table.Root>
+	</div>
+{/snippet}
+
+{#snippet raceTable(limit: number)}
+	<div class="overflow-x-auto rounded-md border">
+		<Table.Root class="min-w-[580px]">
+			<Table.Header
+				><Table.Row
+					><Table.Head class="pl-4">Track</Table.Head><Table.Head>Grand Prix</Table.Head><Table.Head
+						>Combination</Table.Head
+					><Table.Head class="pr-4 text-right">Finish</Table.Head></Table.Row
+				></Table.Header
+			>
+			<Table.Body>
+				{#each profile.finished.slice(0, limit) as result (result._id)}
+					<Table.Row
+						><Table.Cell class="pl-4"
+							><a
+								href={resolve(`/grandprix/[id]?track=${result.raceId}`, { id: result.grandPrixId })}
+								class="focus-visible:ring-ring flex items-center gap-3 rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2"
+								><img
+									src={`/tracks/icons/${getTrackImage(tracks, result.trackEndId)}.png`}
+									alt=""
+									loading="lazy"
+									class="size-10 object-contain"
+								/>{getTrackName(tracks, result.trackEndId)}</a
+							></Table.Cell
+						><Table.Cell
+							><a
+								href={resolve('/grandprix/[id]', { id: result.grandPrixId })}
+								class="rounded-sm hover:underline focus-visible:ring-2"
+								>GP {result.grandPrixOrder}</a
+							></Table.Cell
+						><Table.Cell
+							><div class="flex items-center gap-2">
+								{#if result.characterId}<img
+										src={`/characters/${getCharacterImage(characters, result.characterId)}.png`}
+										alt={getCharacterName(characters, result.characterId)}
+										title={getCharacterName(characters, result.characterId)}
+										loading="lazy"
+										class="h-10 w-8 object-contain"
+									/>{/if}{#if result.kartId}<img
+										src={`/karts/${getKartImage(karts, result.kartId)}.png`}
+										alt={getKartName(karts, result.kartId)}
+										title={getKartName(karts, result.kartId)}
+										loading="lazy"
+										class="h-10 w-14 object-contain"
+									/>{/if}{#if !result.characterId && !result.kartId}<span
+										class="text-muted-foreground">Not recorded</span
+									>{/if}
+							</div></Table.Cell
+						><Table.Cell class="pr-4 text-right"
+							><PositionBadge position={result.position} /></Table.Cell
+						></Table.Row
+					>
+				{:else}<Table.Row
+						><Table.Cell colspan={4} class="text-muted-foreground py-10 text-center"
+							>No race finishes recorded yet.</Table.Cell
+						></Table.Row
+					>{/each}
+			</Table.Body>
+		</Table.Root>
+	</div>
+{/snippet}

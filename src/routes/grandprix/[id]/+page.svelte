@@ -1,4 +1,7 @@
 <script lang="ts">
+	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
+	import { calculateExpectedPoints, calculatePointsComparison } from './expected-points';
+	import { calculateGpOutlook } from './gp-outlook';
 	import type { PageData } from './$types';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -14,6 +17,7 @@
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import {
+		cn,
 		addNumberSuffix,
 		getPositionColour,
 		calculateConsistency,
@@ -45,8 +49,8 @@
 	import { fade } from 'svelte/transition';
 	import { cubicIn, cubicInOut } from 'svelte/easing';
 	import type { FunctionReturnType } from 'convex/server';
-	import { scaleBand } from 'd3-scale';
-	import { BarChart, type ChartContextValue } from 'layerchart';
+	import { scaleBand, scaleLinear } from 'd3-scale';
+	import { BarChart, type ChartState } from 'layerchart';
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import { characterDataset, kartDataset } from '$lib/data/StatsDataset';
 
@@ -119,13 +123,53 @@
 			: undefined
 	);
 
-	let tableColours = $state(page.url.searchParams.get('results-view') || 'medals');
-
 	let finishPosition = $state('');
 
 	const resultsTable = $derived(
 		!raceList.isLoading && useQuery(api.results.get, { grandPrixId: grandPrixDetails?._id })
 	);
+
+	const expectedPoints = $derived(
+		resultsTable && resultsTable.data && stats && stats.data
+			? calculateExpectedPoints(grandPrixDetails.participants, resultsTable.data, stats.data)
+			: undefined
+	);
+
+	const gpOutlook = $derived(
+		resultsTable && resultsTable.data && stats && stats.data
+			? calculateGpOutlook(grandPrixDetails.participants, resultsTable.data, stats.data)
+			: undefined
+	);
+
+	const pointsComparison = $derived(
+		resultsTable && resultsTable.data && stats && stats.data
+			? calculatePointsComparison(grandPrixDetails.participants, resultsTable.data, stats.data)
+			: undefined
+	);
+
+	const raceComparisons = $derived(
+		resultsTable && resultsTable.data && stats && stats.data
+			? [...resultsTable.data]
+					.sort((a, b) => a.order - b.order)
+					.map((race) => ({
+						race,
+						comparisons: calculatePointsComparison(
+							grandPrixDetails.participants,
+							[race],
+							stats.data!
+						)
+					}))
+			: []
+	);
+
+	const comparisonColourScale = scaleLinear<string>()
+		.domain([-5, -3, 0, 3, 5])
+		.range(['#991b1b', '#f87171', '#ffcc00', '#00a63e', '#166534'])
+		.clamp(true);
+	const comparisonColour = (difference: number | null) =>
+		difference == null || !Number.isFinite(difference)
+			? 'transparent'
+			: comparisonColourScale(difference);
 
 	$inspect(resultsTable);
 
@@ -191,9 +235,6 @@
 	});
 	$effect(() => {
 		selectedUserId && localStorage.setItem('selectedUserId', selectedUserId);
-	});
-	$effect(() => {
-		tableColours && localStorage.setItem('tableColours', tableColours);
 	});
 
 	const submitRaceResults = () => {
@@ -302,7 +343,7 @@
 			};
 			return acc;
 		}, {}) satisfies Chart.ChartConfig);
-	let context = $state<ChartContextValue>();
+	let context = $state<ChartState>();
 
 	const chartKeys = $derived(
 		grandPrixDetails &&
@@ -322,6 +363,22 @@
 		[raceList, standings, resultsTable].map(({ error }) => error).filter((error) => error)
 	);
 </script>
+
+{#snippet comparisonCell(comparison: { difference: number | null; recordedRaces: number })}
+	{@const { difference, recordedRaces } = comparison}
+	<span
+		class="inline-block min-w-14 font-medium tabular-nums"
+		aria-label={difference == null
+			? recordedRaces
+				? 'Expected points unavailable'
+				: 'Not recorded'
+			: difference === 0
+				? 'On expected points'
+				: `${Number(Math.abs(difference).toFixed(1))} points ${difference > 0 ? 'above' : 'below'} expected`}
+	>
+		{difference == null ? '—' : `${difference > 0 ? '+' : ''}${Number(difference.toFixed(1))}`}
+	</span>
+{/snippet}
 
 <div transition:fade|global={{ duration: 500, easing: cubicIn }}>
 	{#if initialLoading}
@@ -424,13 +481,8 @@
 											>
 											<Table.Cell class="w-44 py-0 text-center text-black">
 												<div class="flex h-full items-center justify-center gap-2">
-													{#each lastFiveResults as result}
-														<div
-															class="flex h-8 w-8 items-center justify-center rounded-sm text-center text-black"
-															style="background-color: {getPositionColour(result)}"
-														>
-															{result}
-														</div>
+													{#each lastFiveResults as result, resultIndex (resultIndex)}
+														<PositionBadge position={result} class="size-8" />
 													{/each}
 												</div>
 											</Table.Cell>
@@ -584,12 +636,9 @@
 										characterKart && getCharacterImage(characterList, characterKart.character)}
 									{@const kartImage = characterKart && getKartImage(kartList, characterKart.kart)}
 									<div class="flex grow flex-col gap-2">
-										<div class="text-sm font-medium">
-											{#if i !== 0 && points === standings.data[i - 1].points}
-												{position}. {getPlayerName(playerList, userId)}
-											{:else}
-												{position}. {getPlayerName(playerList, userId)}
-											{/if}
+										<div class="flex items-center gap-2 text-sm font-medium">
+											<PositionBadge {position} />
+											{getPlayerName(playerList, userId)}
 										</div>
 										<div class="flex items-center justify-between text-lg">
 											<div>{points}</div>
@@ -611,12 +660,13 @@
 						</div>
 					</Card.Content>
 				</Card.Root>
-				<Card.Root>
+				<Card.Root class="min-w-0 flex-1">
 					<div class="flex justify-between px-6">
 						<Tabs.Root bind:value={tab}>
 							<Tabs.List>
 								<Tabs.Trigger value="results">Results</Tabs.Trigger>
 								<Tabs.Trigger value="cumulative">Cumulative</Tabs.Trigger>
+								<Tabs.Trigger value="expected">xPoints</Tabs.Trigger>
 							</Tabs.List>
 						</Tabs.Root>
 						<!--
@@ -631,7 +681,11 @@
 					<Card.Header class="flex justify-between">
 						<div class="flex flex-col gap-1.5">
 							<Card.Title>Grand Prix {grandPrixDetails.order}</Card.Title>
-							{#if tab === 'standings'}
+							{#if tab === 'expected'}
+								<Card.Description
+									>Points gained or lost against expectations in each race.</Card.Description
+								>
+							{:else if tab === 'standings'}
 								<Card.Description
 									>Cumulative points for Grand Prix {grandPrixDetails.order}.</Card.Description
 								>
@@ -641,26 +695,81 @@
 								>
 							{/if}
 						</div>
-						<Button
-							variant="outline"
-							onclick={() => (tableColours = tableColours === 'medals' ? 'scale' : 'medals')}
-						>
-							{#if tableColours === 'medals'}
-								<div class="flex">
-									<div class="h-4 w-4 bg-amber-300"></div>
-									<div class="h-4 w-4 bg-gray-300"></div>
-									<div class="h-4 w-4 bg-yellow-600"></div>
-								</div>
-							{:else}
-								<div class="flex">
-									<div class="h-4 w-4 bg-green-700"></div>
-									<div class="h-4 w-4 bg-amber-400"></div>
-									<div class="h-4 w-4 bg-red-700"></div>
-								</div>
-							{/if}
-						</Button>
 					</Card.Header>
-					{#if tab === 'cumulative'}{:else if tab === 'results'}
+					{#if tab === 'expected'}
+						<Card.Content>
+							<Table.Root>
+								<Table.Header>
+									<Table.Row>
+										<Table.Head class="w-8">#</Table.Head>
+										<Table.Head class="min-w-36">Race</Table.Head>
+										{#each grandPrixDetails.participants as playerId (playerId)}
+											<Table.Head class="text-center"
+												>{getPlayerName(playerList ?? [], playerId)}</Table.Head
+											>
+										{/each}
+									</Table.Row>
+								</Table.Header>
+								<Table.Body>
+									{#each raceComparisons as { race, comparisons } (race._id)}
+										<Table.Row>
+											<Table.Cell>{race.order + 1}</Table.Cell>
+											<Table.Cell>
+												<a
+													class="hover:text-primary focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+													href={`/grandprix/${grandPrixDetails._id}?track=${race._id}`}
+												>
+													{#if race.trackStartId !== race.trackEndId}
+														<span class="flex items-center gap-1 text-xs"
+															>{getTrackName(trackList ?? [], race.trackStartId)}
+															<MoveRightIcon class="size-3 shrink-0" /></span
+														>
+													{/if}
+													{getTrackName(trackList ?? [], race.trackEndId)}
+												</a>
+											</Table.Cell>
+											{#each comparisons as comparison (comparison.userId)}
+												<Table.Cell
+													class={cn(
+														'text-center',
+														comparison.difference != null &&
+															(Math.abs(comparison.difference) >= 4 ? 'text-white' : 'text-black')
+													)}
+													style={`background-color: ${comparisonColour(comparison.difference)}`}
+													>{@render comparisonCell(comparison)}</Table.Cell
+												>
+											{/each}
+										</Table.Row>
+									{/each}
+								</Table.Body>
+								<Table.Footer>
+									<Table.Row>
+										<Table.Head colspan={2} scope="row">Total so far</Table.Head>
+										{#each pointsComparison ?? [] as comparison (comparison.userId)}
+											<Table.Cell
+												class={cn(
+													'text-center',
+													comparison.difference != null &&
+														(Math.abs(comparison.difference) >= 4 ? 'text-white' : 'text-black')
+												)}
+												style={`background-color: ${comparisonColour(comparison.difference)}`}
+												>{@render comparisonCell(comparison)}</Table.Cell
+											>
+										{/each}
+									</Table.Row>
+								</Table.Footer>
+							</Table.Root>
+							<p class="text-muted-foreground mt-4 max-w-xl text-xs">
+								Each cell shows points above or below expectations. Green means ahead of
+								expectations; red means behind, and yellow means on target. Totals include only each
+								racer's recorded finishes. A dash means no result or insufficient track history.
+							</p>
+							<p class="text-muted-foreground mt-2 max-w-xl text-xs">
+								Expectations rank all GP racers by win probability using current track history and
+								may change as results are added. Equal probabilities share place points.
+							</p>
+						</Card.Content>
+					{:else if tab === 'cumulative'}{:else if tab === 'results'}
 						<ScrollArea class="w-96 md:w-full" orientation="horizontal">
 							<Card.Content>
 								<Table.Root class="table-fixed">
@@ -699,42 +808,127 @@
 												{/if}
 
 												{#each results as { _id, userId, position }, j (j)}
-													{#if tableColours === 'scale'}
-														<Table.Cell
-															class="text-center text-black"
-															style="background-color: {getPositionColour(position)}"
-														>
-															{position}
-														</Table.Cell>
-													{:else if tableColours === 'medals'}
-														{#if position === 1}
-															<Table.Cell class="bg-yellow-400 text-center text-black">
-																{position}
-															</Table.Cell>
-														{:else if position === 2}
-															<Table.Cell class="bg-gray-300 text-center text-black">
-																{position}
-															</Table.Cell>
-														{:else if position === 3}
-															<Table.Cell class="bg-yellow-600 text-center text-black">
-																{position}
-															</Table.Cell>
-														{:else}
-															<Table.Cell class="text-center text-white">
-																{position}
-															</Table.Cell>
-														{/if}
-													{/if}
+													<Table.Cell
+														class={cn(
+															'text-center font-medium tabular-nums',
+															position === 1
+																? 'bg-yellow-400 text-black'
+																: position === 2
+																	? 'bg-gray-300 text-black'
+																	: position === 3
+																		? 'bg-yellow-600 text-black'
+																		: ''
+														)}
+													>
+														{position != null &&
+														Number.isInteger(position) &&
+														position >= 1 &&
+														position <= 24
+															? position
+															: '—'}
+													</Table.Cell>
 												{/each}
 											</Table.Row>
 										{/each}
 									</Table.Body>
+									<Table.Footer>
+										<Table.Row>
+											<Table.Head colspan={2} scope="row">Expected points</Table.Head>
+											{#each grandPrixDetails.participants as playerId (playerId)}
+												{@const expected = expectedPoints?.get(playerId)}
+												<Table.Cell class="text-center tabular-nums">
+													{expected == null ? '—' : Number(expected.toFixed(1))}
+												</Table.Cell>
+											{/each}
+										</Table.Row>
+									</Table.Footer>
 								</Table.Root>
 							</Card.Content>
 						</ScrollArea>
+						<p class="text-muted-foreground max-w-xl px-6 pb-6 text-xs">
+							Projected final points: recorded finishes plus remaining races ranked by win
+							probability. Equal probabilities share place points. A dash means there is not enough
+							track history to predict.
+						</p>
 					{/if}
 				</Card.Root>
 			</div>
+
+			<Card.Root>
+				<Card.Header>
+					<Card.Title>Grand Prix stats</Card.Title>
+					<Card.Description>
+						{#if gpOutlook}{gpOutlook.completedRaces} of {gpOutlook.totalRaces} races complete · {grandPrixDetails
+								.participants.length} racers{:else}Loading stats…{/if}
+					</Card.Description>
+				</Card.Header>
+				<Card.Content>
+					{#if gpOutlook}
+						<Table.Root>
+							<Table.Header>
+								<Table.Row>
+									<Table.Head>Racer</Table.Head>
+									<Table.Head class="text-right">Points</Table.Head>
+									<Table.Head class="text-right">Races left</Table.Head>
+									<Table.Head class="text-right">Projected</Table.Head>
+									<Table.Head class="text-right">Min points</Table.Head>
+									<Table.Head class="text-right">Max points</Table.Head>
+									<Table.Head class="text-right">Win GP</Table.Head>
+									<Table.Head class="text-right">Podium</Table.Head>
+								</Table.Row>
+							</Table.Header>
+							<Table.Body>
+								{#each [...gpOutlook.players].sort((a, b) => b.points - a.points) as player (player.userId)}
+									<Table.Row>
+										<Table.Cell class="font-medium"
+											>{getPlayerName(playerList ?? [], player.userId)}</Table.Cell
+										>
+										<Table.Cell class="text-right tabular-nums">{player.points}</Table.Cell>
+										<Table.Cell class="text-right tabular-nums">{player.remaining}</Table.Cell>
+										<Table.Cell class="text-right tabular-nums"
+											>{player.projected == null
+												? '—'
+												: Number(player.projected.toFixed(1))}</Table.Cell
+										>
+										<Table.Cell class="text-right tabular-nums">{player.minimum}</Table.Cell>
+										<Table.Cell class="text-right font-medium tabular-nums"
+											>{player.maximum}</Table.Cell
+										>
+										<Table.Cell class="text-right font-medium tabular-nums"
+											>{player.winChance == null
+												? '—'
+												: `${Number(player.winChance.toFixed(1))}%`}</Table.Cell
+										>
+										<Table.Cell class="text-right tabular-nums"
+											>{player.podiumChance == null
+												? '—'
+												: `${Number(player.podiumChance.toFixed(1))}%`}</Table.Cell
+										>
+									</Table.Row>
+								{/each}
+							</Table.Body>
+						</Table.Root>
+						<p class="text-muted-foreground mt-4 max-w-2xl text-xs">
+							Min and max points use each racer's best or worst available finish across all 24
+							places in their unrecorded races. Projected points use the same ranked predictions as
+							the Results table.
+						</p>
+						<p class="text-muted-foreground mt-2 max-w-2xl text-xs">
+							{#if gpOutlook.simulations}
+								Win and podium chances estimate {gpOutlook.simulations.toLocaleString()} possible GP finishes,
+								ranking remaining group racers into available places using each track's win probabilities.
+								Recorded finishes stay fixed. These are estimates based on current history, with independent
+								races and no forecast for racers outside the group.
+							{:else if gpOutlook.completedRaces === gpOutlook.totalRaces && gpOutlook.totalRaces > 0}
+								All results are recorded; win and podium percentages reflect the final standings.
+							{:else}
+								A dash means there is not enough track history to estimate the remaining races.
+							{/if}
+							Tied wins and podium places count for every tied racer.
+						</p>
+					{/if}
+				</Card.Content>
+			</Card.Root>
 
 			{#if chartData}
 				<Card.Root>

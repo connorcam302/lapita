@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { api } from './_generated/api';
+import { hasAllResults } from '../lib/grand-prix';
+import { buildArchive } from '../lib/gp-archive';
 
 export const getOne = query({
 	args: { id: v.id('grandPrix') },
@@ -21,13 +23,39 @@ export const getAll = query({
 		const pageSize = args.pageSize || 10;
 		const pageCount = args.pageCount || 1;
 		const count = pageSize * pageCount;
-		const gps = await ctx.db.query('grandPrix').withIndex('order').order('desc').take(count);
+		const fetched = await ctx.db
+			.query('grandPrix')
+			.withIndex('order')
+			.order('desc')
+			.take(count + 1);
+		const gps = fetched.slice(0, count);
 		const page = await Promise.all(
 			gps.map(async (gp) => {
 				const gpStandings = await ctx.db
 					.query('grandPrixStandings')
 					.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp._id))
 					.collect();
+
+				const races = await ctx.db
+					.query('races')
+					.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp._id))
+					.collect();
+				const raceResults = await Promise.all(
+					races
+						.sort((a, b) => a.order - b.order)
+						.map(async (race) => ({
+							race,
+							results: await ctx.db
+								.query('results')
+								.withIndex('raceId', (q) => q.eq('raceId', race._id))
+								.collect()
+						}))
+				);
+				const completed = raceResults.filter(({ results }) =>
+					hasAllResults(gp.participants, results)
+				);
+				const nextRace = raceResults.find((entry) => !completed.includes(entry))?.race;
+				const coverTrackId = (nextRace ?? races[0])?.trackEndId;
 
 				const sortedStandings = gpStandings
 					.sort((a, b) => b.points - a.points)
@@ -45,12 +73,16 @@ export const getAll = query({
 					grandPrixId: gp._id,
 					createdAt: gp._creationTime,
 					order: gp.order,
-					standings: sortedStandings
+					standings: sortedStandings,
+					raceCount: races.length,
+					completedRaces: completed.length,
+					nextRaceId: nextRace?._id ?? null,
+					coverTrackId: coverTrackId ?? null
 				};
 			})
 		);
 		return {
-			...gps,
+			hasMore: fetched.length > count,
 			page
 		};
 	}
@@ -194,5 +226,19 @@ export const newGp = mutation({
 			});
 		});
 		return newGpId;
+	}
+});
+
+// Load the complete archive so filtering always includes older Grand Prix.
+export const archive = query({
+	args: {},
+	handler: async (ctx) => {
+		const [gps, races, results, standings] = await Promise.all([
+			ctx.db.query('grandPrix').collect(),
+			ctx.db.query('races').collect(),
+			ctx.db.query('results').collect(),
+			ctx.db.query('grandPrixStandings').collect()
+		]);
+		return buildArchive(gps, races, results, standings);
 	}
 });
