@@ -1,4 +1,5 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
+import { isValidFinishPosition } from '../lib/grand-prix';
 import { mutation, query } from './_generated/server';
 import { getPlayerName, placementToPoints, calculateRaceWinChance } from '$lib/utils';
 
@@ -84,6 +85,26 @@ export const update = mutation({
 		characterId: v.id('characters')
 	},
 	handler: async (ctx, { raceId, userId, position, kartId, characterId, grandPrixId }) => {
+		if (!isValidFinishPosition(position)) {
+			throw new ConvexError('Finish position must be a whole number from 1 to 24.');
+		}
+
+		const [grandPrix, race, kart, character] = await Promise.all([
+			ctx.db.get(grandPrixId),
+			ctx.db.get(raceId),
+			ctx.db.get(kartId),
+			ctx.db.get(characterId)
+		]);
+		if (!grandPrix || !race || race.grandPrixId !== grandPrixId) {
+			throw new ConvexError('The selected race does not belong to this Grand Prix.');
+		}
+		if (!grandPrix.participants.includes(userId)) {
+			throw new ConvexError('The selected racer is not a participant in this Grand Prix.');
+		}
+		if (!kart || !character) {
+			throw new ConvexError('Select an available character and kart.');
+		}
+
 		const currentResult = await ctx.db
 			.query('results')
 			.withIndex('raceIdAndUserId', (q) => q.eq('raceId', raceId).eq('userId', userId))
@@ -94,23 +115,35 @@ export const update = mutation({
 			.withIndex('userIdAndGrandPrixId', (q) =>
 				q.eq('userId', userId).eq('grandPrixId', grandPrixId)
 			)
-			.first();
+			.unique();
 
 		if (!currentStandings || !currentResult) {
-			return;
+			throw new ConvexError('The result or GP standing is missing. Refresh and try again.');
 		}
 
-		let newPoints = currentStandings?.points + placementToPoints[position];
+		// Rebuild from source results instead of applying a delta to a possibly corrupt total.
+		// Convex commits both patches atomically and retries concurrent edits on conflicts.
+		const races = await ctx.db
+			.query('races')
+			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+			.collect();
+		const playerResults = await Promise.all(
+			races.map((race) =>
+				ctx.db
+					.query('results')
+					.withIndex('raceIdAndUserId', (q) => q.eq('raceId', race._id).eq('userId', userId))
+					.unique()
+			)
+		);
+		const points = playerResults.reduce((total, result) => {
+			if (!result) return total;
+			const finish = result._id === currentResult._id ? position : result.position;
+			return total + (isValidFinishPosition(finish) ? placementToPoints[finish] : 0);
+		}, 0);
 
-		if (currentResult?.position) {
-			newPoints = newPoints - placementToPoints[currentResult.position];
-		}
+		await ctx.db.patch(currentStandings._id, { points });
 
-		await ctx.db.patch(currentStandings._id, {
-			points: newPoints
-		});
-
-		await ctx.db.patch(currentResult?._id, {
+		await ctx.db.patch(currentResult._id, {
 			position,
 			kartId,
 			characterId

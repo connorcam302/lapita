@@ -161,7 +161,7 @@ For a local browser smoke test:
 `StartGPButton.svelte` opens a participant-selection sheet with labeled checkboxes, provides Select All, and
 requires at least four selected players in the UI. Its responsive trigger fits narrow screens; failed creation keeps the selection and shows a retry toast. Creating navigates to the new GP.
 The GP result form selects racer, character, kart, race, and finishing position. A
-successful save attempts to move to the next race and shows a toast. `EditTrackButton`
+successful save moves to the next race when one exists and shows a toast. Saving the final race keeps it selected. The form accepts only integer finishes from 1–24, prevents duplicate submissions, and retains selections on errors. `EditTrackButton`
 offers a three-lap track or separate start/end tracks for a transition.
 
 The GP results table includes an Expected points footer with projected final scores. Recorded
@@ -286,10 +286,12 @@ Track detail pages count races by end track (including transitions), using the `
   fully supported starting state. Use the snapshot for realistic local workflows.
 - `races.updateTrack` derives `transition` from unequal start/end IDs. Three-lap races
   use the same track ID for both ends.
-- `results.update` updates an existing race/user result and its existing GP standing.
-  Editing subtracts the prior placement's points before adding the new points. Keep
-  these writes together to prevent double counting; a missing result/standing returns
-  without success.
+- `results.update` validates integer finishes from 1–24, race/GP ownership, participant
+  membership, and character/kart existence before writing. It updates the existing result
+  and recomputes that racer's GP standing from valid source results atomically, excluding
+  other GPs. This repairs previously corrupt totals on a valid save and avoids propagating
+  invalid historical finishes. Missing result/standing records raise an error. Regression tests:
+  `node --import tsx --test tests/result-update.test.ts`.
 - `placementToPoints` in `src/lib/utils.ts` is the scoring authority: 1st=15, 2nd=12,
   3rd=10, 4–5=9, 6–7=8, 8–9=7, 10–12=6, 13–15=5, 16–18=4, 19–21=3,
   22–23=2, 24=1; 0 maps to 0. Do not substitute another Mario Kart points system.
@@ -457,9 +459,7 @@ These are observed implementation limitations, not behaviors to copy into new co
 - An unreachable Convex backend or failed reference query can leave the initial
   bouncing-logo gate waiting. Check backend reachability, URL, dev proxy, and data.
 - Several views assume populated arrays and related records. Track Stats accesses
-  the first two player averages; GP creation assumes two prior GPs; result submission
-  tries to advance past the last race without a boundary check. Include missing/empty
-  data and final-race cases when working on those paths.
+  the first two player averages; GP creation assumes two prior GPs. Include missing/empty data when working on these paths.
 - `src/convex/migrations.ts` contains legacy fields/indexes absent from the current
   schema and destructive replacement/recalculation operations. Do not run it as a
   setup shortcut or assume its types describe the current model.

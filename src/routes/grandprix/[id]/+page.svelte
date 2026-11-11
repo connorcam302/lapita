@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { ConvexError } from 'convex/values';
+	import { isValidFinishPosition } from '$lib/grand-prix';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
 	import { calculateExpectedPoints, calculatePointsComparison } from './expected-points';
 	import { calculateGpOutlook } from './gp-outlook';
@@ -79,13 +81,17 @@
 
 	let selectedCharacterId = $derived(
 		characterList &&
-			((localStorage.getItem('selectedCharacterId') ?? characterList[0]._id) as Id<'characters'>)
+			((characterList.find(
+				(character) => character._id === localStorage.getItem('selectedCharacterId')
+			)?._id ?? characterList[0]?._id) as Id<'characters'>)
 	);
 	let selectedCharacter = $derived(
 		characterList?.find((char) => char._id === (selectedCharacterId as Id<'characters'>))
 	);
 	let selectedKartId = $derived(
-		kartList && ((localStorage.getItem('selectedKartId') ?? kartList[0]._id) as Id<'karts'>)
+		kartList &&
+			((kartList.find((kart) => kart._id === localStorage.getItem('selectedKartId'))?._id ??
+				kartList[0]?._id) as Id<'karts'>)
 	);
 	let selectedKart = $derived(
 		kartList?.find((kart) => kart._id === (selectedKartId as Id<'karts'>))
@@ -93,7 +99,7 @@
 	let selectedUserId = $derived(
 		playerList &&
 			((grandPrixDetails.participants.find((id) => id === localStorage.getItem('selectedUserId')) ??
-				playerList[0]!._id) as Id<'users'>)
+				grandPrixDetails.participants[0]) as Id<'users'>)
 	);
 	let selectedUser = $derived(
 		playerList?.find((racer) => racer._id === (selectedUserId as Id<'users'>))
@@ -124,6 +130,7 @@
 	);
 
 	let finishPosition = $state('');
+	let isSavingResult = $state(false);
 
 	const resultsTable = $derived(
 		!raceList.isLoading && useQuery(api.results.get, { grandPrixId: grandPrixDetails?._id })
@@ -237,45 +244,56 @@
 		selectedUserId && localStorage.setItem('selectedUserId', selectedUserId);
 	});
 
-	const submitRaceResults = () => {
-		if (
-			!grandPrixDetails._id ||
-			!selectedRaceId ||
-			!selectedUserId ||
-			!selectedKartId ||
-			!selectedCharacterId
-		)
-			return toast.error('Something went wrong', {
-				description: 'Try again in a few seconds. Refresh if error persists.'
-			});
-		if (!finishPosition) {
-			return toast.error('Missing fields', {
-				description: 'Please fill out finish position.'
+	const submitRaceResults = async () => {
+		if (isSavingResult) return;
+		const position = Number(finishPosition);
+		if (!isValidFinishPosition(position)) {
+			return toast.error('Invalid finish position', {
+				description: 'Enter a whole number from 1 to 24.'
 			});
 		}
-		client
-			.mutation(api.results.update, {
-				grandPrixId: grandPrixDetails?._id,
-				raceId: selectedRaceId,
-				position: Number(finishPosition),
-				userId: selectedUserId,
-				kartId: selectedKartId,
-				characterId: selectedCharacterId
-			})
-			.then((res) => {
-				if (res?.status === 'Ok') {
-					const currentRaceIndex = raceList.data.findIndex((race) => race._id === selectedRaceId);
-					selectedRaceId = raceList.data[currentRaceIndex + 1]._id;
-					finishPosition = '';
-					return toast.success('Uploaded Result', {
-						description: `Result successfully uploaded.`
-					});
-				} else {
-					return toast.error('Something went wrong', {
-						description: 'Try again in a few seconds. Refresh if error persists.'
-					});
-				}
+		if (
+			!grandPrixDetails._id ||
+			!selectedRace ||
+			!selectedUser ||
+			!grandPrixDetails.participants.includes(selectedUser._id) ||
+			!selectedKart ||
+			!selectedCharacter
+		) {
+			return toast.error('Missing selection', {
+				description: 'Select a racer, race, character and kart before saving.'
 			});
+		}
+		const submittedRaceId = selectedRace._id;
+		const submittedRaces = raceList.data ?? [];
+		isSavingResult = true;
+		try {
+			const res = await client.mutation(api.results.update, {
+				grandPrixId: grandPrixDetails._id,
+				raceId: submittedRaceId,
+				position,
+				userId: selectedUser._id,
+				kartId: selectedKart._id,
+				characterId: selectedCharacter._id
+			});
+			if (res?.status !== 'Ok') throw new Error('Result was not saved.');
+			if (selectedRaceId === submittedRaceId) {
+				const currentRaceIndex = submittedRaces.findIndex((race) => race._id === submittedRaceId);
+				const nextRace = submittedRaces[currentRaceIndex + 1];
+				if (nextRace) selectedRaceId = nextRace._id;
+				finishPosition = '';
+			}
+			toast.success('Result saved');
+		} catch (error) {
+			toast.error('Could not save result', {
+				description:
+					error instanceof ConvexError && typeof error.data === 'string'
+						? error.data
+						: 'Try again. Your selections have been kept.'
+			});
+		} finally {
+			isSavingResult = false;
+		}
 	};
 
 	const statNames = [
@@ -533,7 +551,7 @@
 				<Card.Content>
 					<div class="flex flex-wrap items-end gap-2 md:flex-nowrap">
 						<div>
-							<Select.Root type="single" bind:value={selectedUserId}>
+							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedUserId}>
 								<Select.Label>Racer</Select.Label>
 								<Select.Trigger class="w-[100px]">{selectedUser?.name}</Select.Trigger>
 								<Select.Content class="md:max-w-16">
@@ -546,7 +564,7 @@
 							</Select.Root>
 						</div>
 						<div>
-							<Select.Root type="single" bind:value={selectedRaceId}>
+							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedRaceId}>
 								<Select.Label>Race</Select.Label>
 								<Select.Trigger class="w-[240px] truncate overflow-hidden text-ellipsis">
 									{selectedRace.order + 1}.
@@ -582,7 +600,7 @@
 						</div>
 
 						<div>
-							<Select.Root type="single" bind:value={selectedCharacterId}>
+							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedCharacterId}>
 								<Select.Label>Character</Select.Label>
 								<Select.Trigger class="w-[160px]">
 									{selectedCharacterId && getCharacterName(characterList, selectedCharacterId)}
@@ -595,7 +613,7 @@
 							</Select.Root>
 						</div>
 						<div>
-							<Select.Root type="single" bind:value={selectedKartId}>
+							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedKartId}>
 								<Select.Label>Kart</Select.Label>
 								<Select.Trigger class="w-[160px]">
 									{selectedKart && getKartName(kartList, selectedKartId)}
@@ -608,12 +626,23 @@
 							</Select.Root>
 						</div>
 						<div class="flex flex-col">
-							<Label class="text-muted-foreground px-2 py-1.5 text-xs">Pos</Label>
-							<Input placeholder="##" bind:value={finishPosition} />
+							<Label for="finish-position" class="text-muted-foreground px-2 py-1.5 text-xs"
+								>Pos</Label
+							>
+							<Input
+								id="finish-position"
+								inputmode="numeric"
+								placeholder="1–24"
+								bind:value={finishPosition}
+								disabled={isSavingResult}
+							/>
 						</div>
 						<div class="flex w-32 flex-col">
-							<Button variant="secondary" class="cursor-pointer" onclick={() => submitRaceResults()}
-								>Submit</Button
+							<Button
+								variant="secondary"
+								class="cursor-pointer"
+								disabled={isSavingResult}
+								onclick={submitRaceResults}>{isSavingResult ? 'Saving…' : 'Submit'}</Button
 							>
 						</div>
 					</div>

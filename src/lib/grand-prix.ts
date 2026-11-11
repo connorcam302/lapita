@@ -1,3 +1,10 @@
+/** Only integer finishes in the game's 24-place field can earn points. */
+export function isValidFinishPosition(position: unknown): position is number {
+	return (
+		typeof position === 'number' && Number.isInteger(position) && position >= 1 && position <= 24
+	);
+}
+
 /** A race is complete only when every participant has a valid finishing position. */
 export function hasAllResults(
 	participants: readonly string[],
@@ -6,14 +13,7 @@ export function hasAllResults(
 	return (
 		participants.length > 0 &&
 		participants.every((userId) =>
-			results.some(
-				(result) =>
-					result.userId === userId &&
-					typeof result.position === 'number' &&
-					Number.isInteger(result.position) &&
-					result.position >= 1 &&
-					result.position <= 24
-			)
+			results.some((result) => result.userId === userId && isValidFinishPosition(result.position))
 		)
 	);
 }
