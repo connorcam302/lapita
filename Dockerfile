@@ -15,6 +15,14 @@ ENV PUBLIC_CONVEX_URL=$PUBLIC_CONVEX_URL
 RUN test -n "$PUBLIC_CONVEX_URL" || (echo 'PUBLIC_CONVEX_URL build argument is required' >&2; exit 1)
 RUN bun run build
 
+# Deploy only after the website compiles; the key exists only for this RUN.
+FROM build AS convex-deploy
+ARG DEPLOY_CONVEX=false
+# Change this non-secret value to repeat a deployment with otherwise cached inputs.
+ARG CONVEX_DEPLOY_REVISION=0
+RUN --mount=type=secret,id=CONVEX_SELF_HOSTED_ADMIN_KEY \
+    : "$CONVEX_DEPLOY_REVISION" && sh scripts/deploy-convex.sh
+
 FROM dependencies AS production-dependencies
 RUN rm -rf node_modules && bun install --frozen-lockfile --production --ignore-scripts
 
@@ -22,7 +30,7 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/build ./build
+COPY --from=convex-deploy --chown=node:node /app/build ./build
 COPY --chown=node:node package.json ./
 USER node
 EXPOSE 3000

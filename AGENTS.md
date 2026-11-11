@@ -164,6 +164,16 @@ The GP result form selects racer, character, kart, race, and finishing position.
 successful save moves to the next race when one exists and shows a toast. Saving the final race keeps it selected. The form accepts only integer finishes from 1–24, prevents duplicate submissions, and retains selections on errors. `EditTrackButton`
 offers a three-lap track or separate start/end tracks for a transition.
 
+The GP Cumulative tab shows running points in race order with participant-aligned columns,
+using `placementToPoints`. Only integer finishes from 1–24 count; unrecorded cells show a dash,
+and the Total points footer includes all recorded scores. Medal cell colors reflect cumulative
+competition ranks (ties share places). Results uses the same ordered rows with per-race positions.
+The helper is `cumulative-points.ts`; run its focused tests with:
+
+```bash
+node --import tsx 'src/routes/grandprix/[id]/cumulative-points.test.ts'
+```
+
 The GP results table includes an Expected points footer with projected final scores. Recorded
 finishes use actual points; remaining racers are ranked by the existing per-end-track win
 probabilities and assigned points for the unoccupied finishing places. Equal probabilities
@@ -183,7 +193,8 @@ node --import tsx 'src/routes/grandprix/[id]/expected-points.test.ts'
 
 The Grand Prix stats section shows current/projected points, unrecorded races per player,
 minimum/maximum possible points across the 24-place scoring system, and estimated GP win/podium
-chances. `gp-outlook.ts` samples 5,000 weighted remaining group finish orders with a repeatable
+chances. All columns sort in both directions via their header buttons (unavailable forecasts
+stay last); the default is points descending. `gp-outlook.ts` samples 5,000 weighted remaining group finish orders with a repeatable
 seed, keeping recorded results and their occupied places fixed. Races are independent and
 outside-group finishers are not modeled. Missing track probabilities leave chances unavailable;
 completed GPs use exact competition ranks, including tied wins/podiums. Min/max limits are
@@ -442,8 +453,17 @@ node build
 ```
 
 The Dockerfile uses Bun 1.3.4 to install/build and Node 22 for a non-root runtime,
-listening on `0.0.0.0:3000`. It packages the website only. Convex must be hosted
-separately with matching functions/schema deployed.
+listening on `0.0.0.0:3000`. Convex must be hosted separately. By default the image
+build packages only the website. Set build argument `DEPLOY_CONVEX=true` and provide
+BuildKit secret `CONVEX_SELF_HOSTED_ADMIN_KEY` to deploy functions/indexes/schema after
+website compilation. `scripts/deploy-convex.sh` targets `PUBLIC_CONVEX_URL`, uses the
+installed CLI with committed bindings, and fails the build on deployment errors.
+The runtime copies the website from the `convex-deploy` stage, ensuring it runs.
+Never put the admin key in ARG/ENV, source files, or runtime configuration. Change
+`CONVEX_DEPLOY_REVISION` or bypass the `convex-deploy` stage cache to redeploy unchanged
+source or rotate a secret; secret values alone do not invalidate the cache.
+Backend pushes cannot be rolled back by rolling back the website image. Wrapper tests:
+`node --import tsx --test tests/deploy-convex.test.ts`.
 
 For Dokploy, use the root Dockerfile and repository-root build context. Set
 `PUBLIC_CONVEX_URL` as a **build argument**, `ORIGIN` as the runtime public site

@@ -79,12 +79,57 @@ The production build uses SvelteKit's Node adapter. Start it with `node build`.
    for example `https://lapita.example.com`.
 4. Add your domain in Dokploy and route it to container port **3000**, then deploy.
 
-The image runs as a non-root user and needs no persistent volumes. It packages
-the website only: deploy or host Convex separately and deploy your Convex
-functions/schema to that backend before using the app. The development-only
-`/__convex` proxy is not included, so use a publicly reachable backend URL rather
-than `localhost` or a Docker-internal hostname. Local `.env` files and data exports
-are excluded from the image.
+The image runs as a non-root user and needs no persistent volumes. Convex itself
+must already be running separately. The development-only `/__convex` proxy is not
+included, so use a publicly reachable backend API URL rather than `localhost` or a
+Docker-internal hostname. Local `.env` files and data exports are excluded from the image.
+
+### Deploy self-hosted Convex during the Docker build
+
+In Dokploy's **Environment** settings:
+
+- Keep `PUBLIC_CONVEX_URL` in **Build Time Arguments**, pointing to your self-hosted
+  Convex API (the API endpoint, not the dashboard or site-proxy endpoint).
+- Add `DEPLOY_CONVEX=true` to **Build Time Arguments**.
+- Add `CONVEX_SELF_HOSTED_ADMIN_KEY` with your backend's existing admin key to
+  **Build-time Secrets**. Do not put the key in build arguments or runtime variables.
+
+The build compiles the website first, then uses the installed Convex CLI to deploy
+functions, indexes, and schema to that same backend. A deployment failure fails the
+image build. The CLI uses its normal typecheck behavior and the committed generated
+bindings (`--codegen disable`). No database reset or snapshot import runs.
+The backend must be reachable from the Docker builder. The admin key is mounted
+only for the deploy command and is not copied into image layers or the runtime.
+See [Dokploy's build-time secrets](https://docs.dokploy.com/docs/core/applications/build-type)
+and [Docker's secret mounts](https://docs.docker.com/build/building/secrets/).
+
+Docker caches successful deployment steps. Changing source files reruns the step;
+for an unchanged-source redeploy or a rotated secret, change the non-secret
+`CONVEX_DEPLOY_REVISION` build argument (for example, to a new release number), or
+build with `docker buildx build --no-cache-filter convex-deploy ...`.
+The secret's value alone does not invalidate Docker's build cache.
+
+The backend push and website rollout are separate operations: rolling back an image
+or a later build/rollout failure does not roll back the Convex deployment. Keep backend
+changes compatible with the currently running frontend during rollout.
+
+To build with deployment from a local environment variable containing the admin key:
+
+```bash
+docker build \
+  --build-arg PUBLIC_CONVEX_URL=https://convex.example.com \
+  --build-arg DEPLOY_CONVEX=true \
+  --secret id=CONVEX_SELF_HOSTED_ADMIN_KEY,env=CONVEX_SELF_HOSTED_ADMIN_KEY \
+  -t lapita .
+```
+
+Without `DEPLOY_CONVEX=true`, Docker builds only the website and requires no admin
+key. Deploy matching Convex functions separately in that mode. Test the deployment
+wrapper without contacting a backend using:
+
+```bash
+node --import tsx --test tests/deploy-convex.test.ts
+```
 
 To build and run the same image locally:
 
