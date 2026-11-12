@@ -124,17 +124,18 @@ functions are not the normal seed path.
 
 ## Routes and interacting with the app
 
-| Route               | Purpose and main files                                                                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                 | Grand Prix overview: latest GP, standings, monthly history in batches of 12; `+page.svelte`, `home-data.ts`                                                                 |
-| `/grandprix`        | All Grand Prix archive: search by GP number/player; combine participant, winner, track, completion status and inclusive dates; sort newest/oldest. Filters live in the URL. |
-| `/grandprix/[id]`   | Race selection, result entry, standings, history, win-chance and combo charts; route page and `RaceWinChanceChart.svelte`                                                   |
-| `/players/[userId]` | Player summary, track averages, character/kart usage, GP/race history; route page and `TrackBars.svelte`                                                                    |
-| `/tracks/[trackId]` | Track summary, player performance, finishing distribution, combination stats, and race history with expandable results; `tracks.detail`, `$lib/track-stats.ts`              |
-| `/track-stats`      | Sortable track statistics; route page, `DataTable.svelte`, `columns.ts`, `SortableHeader.svelte`                                                                            |
-| `/stats/calculator` | Choose character/kart; compare eight stats and their averages in a table/chart                                                                                              |
-| `/records`          | All-time player rankings for wins, podiums, GP scores, average finishes and streaks; `src/lib/records.ts`, `src/convex/records.ts`                                          |
-| `/test`             | Existing experimental stats/chart page; not a substitute for automated tests                                                                                                |
+| Route                | Purpose and main files                                                                                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                  | Grand Prix overview: latest GP, standings, monthly history in batches of 12; `+page.svelte`, `home-data.ts`                                                                 |
+| `/grandprix`         | All Grand Prix archive: search by GP number/player; combine participant, winner, track, completion status and inclusive dates; sort newest/oldest. Filters live in the URL. |
+| `/grandprix/deleted` | Unlisted recovery page for deleted GPs; open by URL to restore races, results, and standings. Excluded from navigation/search and marked noindex.                           |
+| `/grandprix/[id]`    | Race selection, result entry, standings, history, win-chance and combo charts; route page and `RaceWinChanceChart.svelte`                                                   |
+| `/players/[userId]`  | Player summary, track averages, character/kart usage, GP/race history; route page and `TrackBars.svelte`                                                                    |
+| `/tracks/[trackId]`  | Track summary, player performance, finishing distribution, combination stats, and race history with expandable results; `tracks.detail`, `$lib/track-stats.ts`              |
+| `/track-stats`       | Sortable track statistics; route page, `DataTable.svelte`, `columns.ts`, `SortableHeader.svelte`                                                                            |
+| `/stats/calculator`  | Choose character/kart; compare eight stats and their averages in a table/chart                                                                                              |
+| `/records`           | All-time player rankings for wins, podiums, GP scores, average finishes and streaks; `src/lib/records.ts`, `src/convex/records.ts`                                          |
+| `/test`              | Existing experimental stats/chart page; not a substitute for automated tests                                                                                                |
 
 Dynamic URL segments are Convex document IDs, not GP order numbers or player names.
 Use existing data to obtain IDs; do not invent them.
@@ -164,8 +165,12 @@ The GP page heading includes Add racers and Delete GP controls (`ManageGP.svelte
 existing users creates zero-point standings and blank results for every race, including earlier
 races that can be backfilled; completion still requires every participant's result. The participant
 list subscribes to `gps.getOne` so result entry and analytics update live. `gps.addRacers` validates
-users and deduplicates additions. Deletion requires confirmation and `gps.remove` atomically
-removes the GP, its races, results, and standings, then returns to the archive. Missing GP URLs
+users and deduplicates additions. Deletion requires confirmation and `gps.remove` sets an optional `grandPrix.deletedAt`
+timestamp, retaining all GP/race/result/standing documents and IDs. Deleted GPs are hidden
+from normal lists, player history, records, track stats, and forecasts; backend mutations
+reject edits while deleted. The URL-only `/grandprix/deleted` page
+uses `gps.deleted` and `gps.restore` to recover them without an expiry. GP numbers stay
+reserved while deleted. `gp_visibility.ts` filters retained child records by active parents. Missing GP URLs
 return 404. Neither mutation adds authentication. Focused tests:
 `node --import tsx --test tests/gp-management.test.ts`.
 
@@ -183,10 +188,13 @@ The helper is `cumulative-points.ts`; run its focused tests with:
 node --import tsx 'src/routes/grandprix/[id]/cumulative-points.test.ts'
 ```
 
-The GP results table includes an Expected points footer with projected final scores. Recorded
-finishes use actual points; remaining racers are ranked by the existing per-end-track win
-probabilities and assigned points for the unoccupied finishing places. Equal probabilities
-share the points for their places; missing probability history shows a dash. Projections
+The GP results table includes a Points footer summing valid recorded finishes with
+`placementToPoints`; unplayed races contribute no points. Projected final scores appear as xPoints
+in the Grand Prix stats table. Recorded finishes use actual points; remaining racers are ranked by the existing per-end-track win
+probabilities and assigned points for the unoccupied finishing places. Equal rounded probabilities
+use unrounded model weight, lower track average, lower recent-five average, lower best finish,
+then higher race count. Exact ties use stable racer ID order, so every predicted place receives
+whole-number points; missing probability history shows a dash. Projections
 update from live result/stat queries and equal actual scores once all finishes are recorded.
 The xPoints tab uses race rows and participant columns like Results. Each cell shows
 only a signed actual-minus-expected points gap on scaled green/yellow/red cell backgrounds (+3 green, +5 dark green; mirrored reds below expected,
@@ -200,10 +208,13 @@ as results update. The calculation lives beside the page in `expected-points.ts`
 node --import tsx 'src/routes/grandprix/[id]/expected-points.test.ts'
 ```
 
-The Grand Prix stats section shows current/projected points, unrecorded races per player,
-minimum/maximum possible points across the 24-place scoring system, and estimated GP win/podium
-chances. All columns sort in both directions via their header buttons (unavailable forecasts
-stay last); the default is points descending. `gp-outlook.ts` samples 5,000 weighted remaining group finish orders with a repeatable
+The Grand Prix stats section has one table with grouped Starting stats and Ongoing stats columns. Starting stats show projected
+xPoints and GP win chance with all GP races treated as unplayed, using `results.stats` with
+`beforeGrandPrixId` to include only earlier GP orders. These are reconstructed forecasts, not
+stored snapshots: edits to earlier history, participants, or scheduled tracks can change them.
+Ongoing stats show current/projected points, maximum possible points across the 24-place
+scoring system, and estimated GP win chance. All columns sort the shared racer rows; the default is ongoing points descending. Unavailable forecasts stay last in either sort direction.
+`gp-outlook.ts` samples 5,000 weighted remaining group finish orders with a repeatable
 seed, keeping recorded results and their occupied places fixed. Races are independent and
 outside-group finishers are not modeled. Missing track probabilities leave chances unavailable;
 completed GPs use exact competition ranks, including tied wins/podiums. Min/max limits are
@@ -280,16 +291,16 @@ Track detail pages count races by end track (including transitions), using the `
 
 `src/convex/schema.ts` defines eight tables:
 
-| Table                | Fields and relationships (besides Convex metadata)                    |
-| -------------------- | --------------------------------------------------------------------- |
-| `users`              | `name`                                                                |
-| `tracks`             | `name`, `img`                                                         |
-| `characters`         | Optional `name`, optional `img`                                       |
-| `karts`              | `name`, `img`                                                         |
-| `grandPrix`          | Numeric `order`, array of participant user IDs                        |
-| `grandPrixStandings` | GP ID, user ID, points                                                |
-| `races`              | Numeric `order`, GP ID, start/end track IDs, `transition`             |
-| `results`            | Race ID, user ID, optional/null position, optional character/kart IDs |
+| Table                | Fields and relationships (besides Convex metadata)                             |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `users`              | `name`                                                                         |
+| `tracks`             | `name`, `img`                                                                  |
+| `characters`         | Optional `name`, optional `img`                                                |
+| `karts`              | `name`, `img`                                                                  |
+| `grandPrix`          | Numeric `order`, array of participant user IDs, optional `deletedAt` timestamp |
+| `grandPrixStandings` | GP ID, user ID, points                                                         |
+| `races`              | Numeric `order`, GP ID, start/end track IDs, `transition`                      |
+| `results`            | Race ID, user ID, optional/null position, optional character/kart IDs          |
 
 - `gps.newGp` selects up to 16 distinct tracks without replacement. `tracks.valid`
   excludes Rainbow Road. Tracks appearing once/twice in the preceding two GPs are
@@ -382,6 +393,8 @@ and existing layouts as the starting point; a redesign should be explicitly scop
   and a dash for missing results. Reuse it in standings and result views; the GP table
   uses full gold/silver/bronze cells for the top three places, plain cells below the podium,
   and no color-mode toggle.
+- Shared table rows highlight across the full row on hover. A subtle cell overlay preserves
+  medal and xPoints background colors, including inline colors.
 - Pair color with text/numbers. Preserve table headings, sorting affordances, visible
   focus rings, keyboard access, form labels, useful image alt text, and dialog titles.
   Use semantic buttons/links for new interactive surfaces.

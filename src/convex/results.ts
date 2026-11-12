@@ -1,3 +1,4 @@
+import { activeGpRows } from './gp_visibility';
 import { ConvexError, v } from 'convex/values';
 import { isValidFinishPosition } from '../lib/grand-prix';
 import { mutation, query } from './_generated/server';
@@ -6,10 +7,13 @@ import { getPlayerName, placementToPoints, calculateRaceWinChance } from '$lib/u
 export const get = query({
 	args: { grandPrixId: v.id('grandPrix') },
 	handler: async (ctx, { grandPrixId }) => {
-		const races = await ctx.db
-			.query('races')
-			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
-			.collect();
+		const races = await activeGpRows(
+			ctx,
+			await ctx.db
+				.query('races')
+				.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+				.collect()
+		);
 
 		if (races.length === 0) {
 			return null;
@@ -56,6 +60,7 @@ export const getPlayer = query({
 					.withIndex('by_id', (q) => q.eq('_id', race.grandPrixId))
 					.unique();
 
+				if (!grandPrix || grandPrix.deletedAt !== undefined) return null;
 				return {
 					...result,
 					grandPrixOrder: grandPrix.order,
@@ -65,12 +70,14 @@ export const getPlayer = query({
 				};
 			})
 		).then((results) => {
-			return results.sort((a, b) => {
-				if (a.grandPrixOrder === b.grandPrixOrder) {
-					return a.position - b.position;
-				}
-				return b.grandPrixOrder - a.grandPrixOrder;
-			});
+			return results
+				.filter((result) => result !== null)
+				.sort((a, b) => {
+					if (a.grandPrixOrder === b.grandPrixOrder) {
+						return a.position - b.position;
+					}
+					return b.grandPrixOrder - a.grandPrixOrder;
+				});
 		});
 	}
 });
@@ -95,7 +102,12 @@ export const update = mutation({
 			ctx.db.get(kartId),
 			ctx.db.get(characterId)
 		]);
-		if (!grandPrix || !race || race.grandPrixId !== grandPrixId) {
+		if (
+			!grandPrix ||
+			grandPrix.deletedAt !== undefined ||
+			!race ||
+			race.grandPrixId !== grandPrixId
+		) {
 			throw new ConvexError('The selected race does not belong to this Grand Prix.');
 		}
 		if (!grandPrix.participants.includes(userId)) {
@@ -154,14 +166,23 @@ export const update = mutation({
 });
 
 export const stats = query({
-	args: { tracks: v.array(v.id('tracks')), users: v.array(v.id('users')) },
-	handler: async (ctx, { tracks, users }) => {
+	args: {
+		tracks: v.array(v.id('tracks')),
+		users: v.array(v.id('users')),
+		beforeGrandPrixId: v.optional(v.id('grandPrix'))
+	},
+	handler: async (ctx, { tracks, users, beforeGrandPrixId }) => {
+		const cutoff = beforeGrandPrixId ? await ctx.db.get(beforeGrandPrixId) : null;
+		if (beforeGrandPrixId && !cutoff) throw new ConvexError('Grand Prix not found.');
 		const resultsByTrack = await Promise.all(
 			tracks.map(async (track) => {
-				const races = await ctx.db
-					.query('races')
-					.withIndex('trackId', (q) => q.eq('trackStartId', track).eq('trackEndId', track))
-					.collect();
+				const races = await activeGpRows(
+					ctx,
+					await ctx.db
+						.query('races')
+						.withIndex('trackId', (q) => q.eq('trackStartId', track).eq('trackEndId', track))
+						.collect()
+				);
 				// Await all results queries for each race
 				const racesWithResults = await Promise.all(
 					races.map(async (race) => {
@@ -173,6 +194,7 @@ export const stats = query({
 							.query('grandPrix')
 							.withIndex('by_id', (q) => q.eq('_id', race.grandPrixId))
 							.unique();
+						if (cutoff && (!grandPrix || grandPrix.order >= cutoff.order)) return [];
 						return results
 							.filter((result) => users.includes(result.userId) && result.position)
 							.map((result) => {

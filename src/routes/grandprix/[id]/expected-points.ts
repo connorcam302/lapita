@@ -6,7 +6,17 @@ type Race = {
 };
 type TrackChances = {
 	trackId: string;
-	chances?: { user: { userId: string }; chance: number }[];
+	chances?: {
+		user: {
+			userId: string;
+			finalWeight?: number;
+			average?: number;
+			lastFiveResults?: readonly (number | null | undefined)[];
+			bestResult?: number | null;
+			count?: number;
+		};
+		chance: number;
+	}[];
 };
 
 /** Project final GP points, replacing predictions with recorded finishes as they arrive. */
@@ -42,30 +52,46 @@ export function calculateExpectedPoints(
 		}
 
 		const chances = new Map(
-			(chancesByTrack.get(race.trackEndId) ?? []).map(({ user, chance }) => [user.userId, chance])
+			(chancesByTrack.get(race.trackEndId) ?? []).map(({ user, chance }) => [
+				user.userId,
+				{ user, chance }
+			])
 		);
 		// Without every remaining racer's probability, their relative places are unknown.
-		if (pending.some((id) => !Number.isFinite(chances.get(id)))) {
+		if (pending.some((id) => !Number.isFinite(chances.get(id)?.chance))) {
 			for (const id of pending) totals.set(id, null);
 			continue;
 		}
 
-		pending.sort((a, b) => chances.get(b)! - chances.get(a)!);
+		const metric = (value: number | null | undefined, fallback: number) =>
+			typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+		const recentAverage = (user: NonNullable<TrackChances['chances']>[number]['user']) => {
+			const finishes = (user.lastFiveResults ?? []).filter(
+				(value): value is number =>
+					typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 24
+			);
+			return finishes.length
+				? finishes.reduce((sum, value) => sum + value, 0) / finishes.length
+				: Infinity;
+		};
+		pending.sort((a, b) => {
+			const first = chances.get(a)!;
+			const second = chances.get(b)!;
+			// Resolve rounded probability ties with the underlying model and track history.
+			// Missing secondary metrics sort after known values; exact ties use a stable ID order.
+			return first.chance === second.chance
+				? metric(second.user.finalWeight, -Infinity) - metric(first.user.finalWeight, -Infinity) ||
+						metric(first.user.average, Infinity) - metric(second.user.average, Infinity) ||
+						recentAverage(first.user) - recentAverage(second.user) ||
+						metric(first.user.bestResult, Infinity) - metric(second.user.bestResult, Infinity) ||
+						metric(second.user.count, -Infinity) - metric(first.user.count, -Infinity) ||
+						a.localeCompare(b)
+				: second.chance - first.chance;
+		});
 		const available = Array.from({ length: 24 }, (_, i) => i + 1).filter(
 			(position) => !occupied.has(position)
 		);
-		for (let start = 0; start < pending.length;) {
-			let end = start + 1;
-			while (end < pending.length && chances.get(pending[end]) === chances.get(pending[start]))
-				end++;
-			const points =
-				available
-					.slice(start, end)
-					.reduce((sum, position) => sum + placementToPoints[position], 0) /
-				(end - start);
-			for (let i = start; i < end; i++) add(pending[i], points);
-			start = end;
-		}
+		pending.forEach((id, index) => add(id, placementToPoints[available[index]]));
 	}
 
 	return totals;

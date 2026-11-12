@@ -10,6 +10,11 @@ export const get = query({
 			ctx.db.query('races').collect(),
 			ctx.db.query('results').collect()
 		]);
-		return calculateRecords(users, gps, races, results);
+		return calculateRecords(
+			users,
+			gps.filter((gp) => gp.deletedAt === undefined),
+			races,
+			results
+		);
 	}
 });

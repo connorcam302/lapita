@@ -1,3 +1,4 @@
+import { activeGpRows } from './gp_visibility';
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 
@@ -23,10 +24,13 @@ export const detail = query({
 		const trackId = ctx.db.normalizeId('tracks', id);
 		const track = trackId ? await ctx.db.get(trackId) : null;
 		if (!track) return null;
-		const races = await ctx.db
-			.query('races')
-			.withIndex('trackEndId', (q) => q.eq('trackEndId', track._id))
-			.collect();
+		const races = await activeGpRows(
+			ctx,
+			await ctx.db
+				.query('races')
+				.withIndex('trackEndId', (q) => q.eq('trackEndId', track._id))
+				.collect()
+		);
 		const history = await Promise.all(
 			races.map(async (race) => {
 				const [grandPrix, results] = await Promise.all([

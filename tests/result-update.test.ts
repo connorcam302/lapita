@@ -167,3 +167,10 @@ test('all 24 valid positions retain the existing points system', async () => {
 		assert.equal(isValidFinishPosition(input), false);
 	}
 });
+
+test('deleted GPs reject result edits before writes', async () => {
+	const f = fixture();
+	f.find('gp')!.deletedAt = 1;
+	await assert.rejects(f.save());
+	assert.equal(f.writes, 0);
+});

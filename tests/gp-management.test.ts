@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MutationCtx } from '../src/convex/_generated/server';
 import type { Id } from '../src/convex/_generated/dataModel';
-import { addRacers, remove, newGp } from '../src/convex/gps';
+import { activeGpRows } from '../src/convex/gp_visibility';
+import { addRacers, remove, restore, newGp } from '../src/convex/gps';
 
 type Row = { _id: string; [key: string]: unknown };
 function fixture() {
@@ -75,8 +76,16 @@ function fixture() {
 				_handler: (ctx: MutationCtx, args: { grandPrixId: Id<'grandPrix'> }) => Promise<void>;
 			}
 		)._handler(ctx, { grandPrixId: 'gp' as Id<'grandPrix'> });
+	const recover = () =>
+		(
+			restore as unknown as {
+				_handler: (ctx: MutationCtx, args: { grandPrixId: Id<'grandPrix'> }) => Promise<void>;
+			}
+		)._handler(ctx, { grandPrixId: 'gp' as Id<'grandPrix'> });
 	return {
+		recover,
 		rows,
+		ctx,
 		find,
 		add,
 		del,
@@ -126,26 +135,25 @@ test('reject missing GP, missing users and empty selections before writing', asy
 	}
 });
 
-test('delete cascades to all GP results, races and standings, leaving other data intact', async () => {
+test('delete and restore preserve every document and ID, and retries are harmless', async () => {
 	const f = fixture();
 	await f.add(['b']);
+	const before = structuredClone(f.rows);
 	await f.del();
-	assert.equal(f.find('gp'), undefined);
-	assert.deepEqual(
-		f.rows.races.map((row) => row._id),
-		['r3']
-	);
-	assert.deepEqual(
-		f.rows.results.map((row) => row._id),
-		['outside']
-	);
-	assert.deepEqual(
-		f.rows.grandPrixStandings.map((row) => row._id),
-		['s2']
-	);
-	assert.equal(f.rows.users.length, 3);
-	assert.ok(f.find('other'));
+	assert.equal(typeof f.find('gp')!.deletedAt, 'number');
+	const deletedAt = f.find('gp')!.deletedAt;
 	await f.del();
+	assert.equal(f.find('gp')!.deletedAt, deletedAt);
+	await assert.rejects(f.add(['c']), /unavailable/);
+	for (const table of ['results', 'races', 'grandPrixStandings', 'users'])
+		assert.deepEqual(f.rows[table], before[table]);
+	assert.equal(f.find('other')!.deletedAt, undefined);
+	await f.recover();
+	assert.equal(f.find('gp')!.deletedAt, undefined);
+	await f.recover();
+	// Convex removes fields patched to undefined; the fixture retains the undefined key.
+	delete f.find('gp')!.deletedAt;
+	assert.deepEqual(f.rows, before);
 });
 
 test('creation works with zero or one prior GP and awaits every related insert', async () => {
@@ -157,7 +165,12 @@ test('creation works with zero or one prior GP and awaits every related insert',
 					return {
 						withIndex: () =>
 							table === 'grandPrix'
-								? { order: () => ({ take: async () => previous }) }
+								? {
+										order: () => ({
+											first: async () => previous[0] ?? null,
+											filter: () => ({ take: async () => previous })
+										})
+									}
 								: { collect: async () => [] }
 					};
 				},
@@ -182,4 +195,46 @@ test('creation works with zero or one prior GP and awaits every related insert',
 		assert.equal(inserted[1].value.grandPrixId, id);
 		assert.equal(inserted[3].value.raceId, 'races2');
 	}
+});
+
+test('deleted GP races and standings disappear from normal queries and return on restore', async () => {
+	const f = fixture();
+	assert.equal((await activeGpRows(f.ctx, f.rows.races as never[])).length, 3);
+	await f.del();
+	assert.deepEqual(await activeGpRows(f.ctx, f.rows.races as never[]), [f.find('r3')]);
+	assert.deepEqual(await activeGpRows(f.ctx, f.rows.grandPrixStandings as never[]), [f.find('s2')]);
+	await f.recover();
+	assert.equal((await activeGpRows(f.ctx, f.rows.races as never[])).length, 3);
+});
+
+test('new GP numbers remain reserved when the latest GP is deleted', async () => {
+	let newOrder: number | undefined;
+	const ctx = {
+		db: {
+			query(table: string) {
+				return {
+					withIndex: () =>
+						table === 'grandPrix'
+							? {
+									order: () => ({
+										first: async () => ({ order: 12, deletedAt: 1 }),
+										filter: () => ({ take: async () => [{ _id: 'older', order: 10 }] })
+									})
+								}
+							: { collect: async () => [] }
+				};
+			},
+			async insert(table: string, value: { order?: number }) {
+				if (table === 'grandPrix') newOrder = value.order;
+				return 'created';
+			}
+		},
+		runQuery: async () => []
+	} as unknown as MutationCtx;
+	await (
+		newGp as unknown as {
+			_handler: (ctx: MutationCtx, args: { participants: Id<'users'>[] }) => Promise<unknown>;
+		}
+	)._handler(ctx, { participants: [] });
+	assert.equal(newOrder, 13);
 });

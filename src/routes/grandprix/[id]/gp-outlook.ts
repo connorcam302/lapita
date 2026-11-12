@@ -121,3 +121,16 @@ export function calculateGpOutlook<UserId extends string>(
 		simulations: canEstimate && unfinished.length ? SIMULATIONS : 0
 	};
 }
+
+/** Reconstruct the pre-race outlook using history from before this GP. */
+export function calculateStartingGpOutlook<UserId extends string>(
+	participants: readonly UserId[],
+	races: readonly Race[],
+	stats: readonly TrackChances[]
+) {
+	return calculateGpOutlook(
+		participants,
+		races.map((race) => ({ ...race, results: [] })),
+		stats
+	);
+}

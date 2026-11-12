@@ -5,6 +5,8 @@ import type { Id } from './_generated/dataModel';
 export const getOne = query({
 	args: { grandPrixId: v.id('grandPrix') },
 	handler: async (ctx, { grandPrixId }) => {
+		const gp = await ctx.db.get(grandPrixId);
+		if (!gp || gp.deletedAt !== undefined) return [];
 		return await ctx.db
 			.query('grandPrixStandings')
 			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))

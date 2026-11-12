@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { calculateGpOutlook } from './gp-outlook';
+import { calculateGpOutlook, calculateStartingGpOutlook } from './gp-outlook';
 
 const participants = ['a', 'b', 'c', 'd'];
 const race = (positions: (number | null | undefined)[] = []) => ({
@@ -121,4 +121,25 @@ test('empty GPs do not claim wins', () => {
 	const outlook = calculateGpOutlook(participants, [], []);
 	assert.ok(outlook.players.every((p) => p.winChance === null));
 	assert.deepEqual(calculateGpOutlook([], [], []).players, []);
+});
+
+test('starting forecasts ignore recorded finishes and occupied positions', () => {
+	const unplayed = calculateGpOutlook(participants, [race(), race()], stats);
+	const starting = calculateStartingGpOutlook(
+		participants,
+		[race([24, 1, 2, 3]), race([4])],
+		stats
+	);
+	assert.deepEqual(starting, unplayed);
+	assert.notDeepEqual(
+		starting,
+		calculateGpOutlook(participants, [race([24, 1, 2, 3]), race([4])], stats)
+	);
+});
+
+test('starting forecasts need history even when every result is recorded', () => {
+	const starting = calculateStartingGpOutlook(participants, [race([1, 2, 3, 4])], []);
+	assert.ok(
+		starting.players.every((player) => player.projected === null && player.winChance === null)
+	);
 });

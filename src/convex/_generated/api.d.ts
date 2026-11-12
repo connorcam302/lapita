@@ -9,6 +9,7 @@
  */
 
 import type * as characters from "../characters.js";
+import type * as gp_visibility from "../gp_visibility.js";
 import type * as gps from "../gps.js";
 import type * as karts from "../karts.js";
 import type * as migrations from "../migrations.js";
@@ -27,6 +28,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   characters: typeof characters;
+  gp_visibility: typeof gp_visibility;
   gps: typeof gps;
   karts: typeof karts;
   migrations: typeof migrations;

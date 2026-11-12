@@ -1,3 +1,4 @@
+import { activeGpRows } from './gp_visibility';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { api } from './_generated/api';
@@ -7,10 +8,8 @@ import { buildArchive } from '../lib/gp-archive';
 export const getOne = query({
 	args: { id: v.id('grandPrix') },
 	handler: async (ctx, args) => {
-		return await ctx.db
-			.query('grandPrix')
-			.withIndex('by_id', (q) => q.eq('_id', args.id))
-			.unique();
+		const gp = await ctx.db.get(args.id);
+		return gp && gp.deletedAt === undefined ? gp : null;
 	}
 });
 
@@ -27,6 +26,7 @@ export const getAll = query({
 			.query('grandPrix')
 			.withIndex('order')
 			.order('desc')
+			.filter((q) => q.eq(q.field('deletedAt'), undefined))
 			.take(count + 1);
 		const gps = fetched.slice(0, count);
 		const page = await Promise.all(
@@ -91,10 +91,13 @@ export const getAll = query({
 export const getPlayerResults = query({
 	args: { userId: v.id('users') },
 	handler: async (ctx, { userId }) => {
-		const playerGps = await ctx.db
-			.query('grandPrixStandings')
-			.withIndex('userId', (q) => q.eq('userId', userId))
-			.collect();
+		const playerGps = await activeGpRows(
+			ctx,
+			await ctx.db
+				.query('grandPrixStandings')
+				.withIndex('userId', (q) => q.eq('userId', userId))
+				.collect()
+		);
 
 		return Promise.all(
 			playerGps.map(async (gp) => {
@@ -134,10 +137,12 @@ export const getPlayerResults = query({
 export const newGp = mutation({
 	args: { participants: v.array(v.id('users')) },
 	handler: async (ctx, { participants }) => {
+		const latest = await ctx.db.query('grandPrix').withIndex('order').order('desc').first();
 		const [gpMinus1, gpMinus2] = await ctx.db
 			.query('grandPrix')
 			.withIndex('order')
 			.order('desc')
+			.filter((q) => q.eq(q.field('deletedAt'), undefined))
 			.take(2);
 		const oldGpTracks = (
 			await Promise.all(
@@ -202,7 +207,7 @@ export const newGp = mutation({
 		const trackList = generateTrackList(trackWeights, 16);
 
 		const newGpId = await ctx.db.insert('grandPrix', {
-			order: (gpMinus1?.order ?? 0) + 1,
+			order: (latest?.order ?? 0) + 1,
 			participants
 		});
 
@@ -242,7 +247,12 @@ export const archive = query({
 			ctx.db.query('results').collect(),
 			ctx.db.query('grandPrixStandings').collect()
 		]);
-		return buildArchive(gps, races, results, standings);
+		return buildArchive(
+			gps.filter((gp) => gp.deletedAt === undefined),
+			races,
+			results,
+			standings
+		);
 	}
 });
 
@@ -251,7 +261,7 @@ export const addRacers = mutation({
 	args: { grandPrixId: v.id('grandPrix'), userIds: v.array(v.id('users')) },
 	handler: async (ctx, { grandPrixId, userIds }) => {
 		const gp = await ctx.db.get(grandPrixId);
-		if (!gp) throw new ConvexError('This Grand Prix no longer exists.');
+		if (!gp || gp.deletedAt !== undefined) throw new ConvexError('This Grand Prix is unavailable.');
 		if (!userIds.length) throw new ConvexError('Select at least one racer.');
 		const users = await Promise.all([...new Set(userIds)].map((id) => ctx.db.get(id)));
 		if (users.some((user) => !user)) throw new ConvexError('A selected racer no longer exists.');
@@ -270,27 +280,33 @@ export const addRacers = mutation({
 	}
 });
 
+/** Retain all related documents so restoring also preserves existing links and IDs. */
 export const remove = mutation({
 	args: { grandPrixId: v.id('grandPrix') },
 	handler: async (ctx, { grandPrixId }) => {
-		if (!(await ctx.db.get(grandPrixId))) return;
-		const races = await ctx.db
-			.query('races')
-			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+		const gp = await ctx.db.get(grandPrixId);
+		if (!gp || gp.deletedAt !== undefined) return;
+		await ctx.db.patch(grandPrixId, { deletedAt: Date.now() });
+	}
+});
+
+export const deleted = query({
+	args: {},
+	handler: async (ctx) => {
+		const gps = await ctx.db
+			.query('grandPrix')
+			.filter((q) => q.neq(q.field('deletedAt'), undefined))
 			.collect();
-		for (const race of races) {
-			const results = await ctx.db
-				.query('results')
-				.withIndex('raceId', (q) => q.eq('raceId', race._id))
-				.collect();
-			for (const result of results) await ctx.db.delete(result._id);
-			await ctx.db.delete(race._id);
-		}
-		const standings = await ctx.db
-			.query('grandPrixStandings')
-			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
-			.collect();
-		for (const standing of standings) await ctx.db.delete(standing._id);
-		await ctx.db.delete(grandPrixId);
+		return gps.sort((a, b) => b.deletedAt! - a.deletedAt!);
+	}
+});
+
+export const restore = mutation({
+	args: { grandPrixId: v.id('grandPrix') },
+	handler: async (ctx, { grandPrixId }) => {
+		const gp = await ctx.db.get(grandPrixId);
+		if (!gp) throw new ConvexError('This Grand Prix no longer exists.');
+		if (gp.deletedAt === undefined) return;
+		await ctx.db.patch(grandPrixId, { deletedAt: undefined });
 	}
 });

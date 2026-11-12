@@ -6,8 +6,8 @@
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import { calculateExpectedPoints, calculatePointsComparison } from './expected-points';
-	import { calculateGpOutlook } from './gp-outlook';
+	import { calculatePointsComparison } from './expected-points';
+	import { calculateGpOutlook, calculateStartingGpOutlook } from './gp-outlook';
 	import { calculateCumulativePoints } from './cumulative-points';
 	import type { PageData } from './$types';
 	import { Separator } from '$lib/components/ui/separator/index.js';
@@ -132,6 +132,15 @@
 			})
 	);
 
+	const startingStats = $derived(
+		!raceList.isLoading &&
+			useQuery(api.results.stats, {
+				tracks: raceList.data.map((race) => race.trackEndId),
+				users: grandPrixDetails.participants,
+				beforeGrandPrixId: grandPrixDetails._id
+			})
+	);
+
 	let selectedRaceStats = $derived(
 		stats && !stats.isLoading && selectedRaceId
 			? stats.data.find((stat) => {
@@ -154,27 +163,29 @@
 		)
 	);
 
-	const expectedPoints = $derived(
-		resultsTable && resultsTable.data && stats && stats.data
-			? calculateExpectedPoints(grandPrixDetails.participants, resultsTable.data, stats.data)
-			: undefined
-	);
-
 	const gpOutlook = $derived(
 		resultsTable && resultsTable.data && stats && stats.data
 			? calculateGpOutlook(grandPrixDetails.participants, resultsTable.data, stats.data)
 			: undefined
 	);
 
+	const startingOutlook = $derived(
+		resultsTable && resultsTable.data && startingStats && startingStats.data
+			? calculateStartingGpOutlook(
+					grandPrixDetails.participants,
+					resultsTable.data,
+					startingStats.data
+				)
+			: undefined
+	);
 	const outlookColumns = [
-		{ key: 'name', label: 'Racer' },
-		{ key: 'points', label: 'Points' },
-		{ key: 'remaining', label: 'Races left' },
-		{ key: 'projected', label: 'Projected' },
-		{ key: 'minimum', label: 'Min points' },
-		{ key: 'maximum', label: 'Max points' },
-		{ key: 'winChance', label: 'Win GP' },
-		{ key: 'podiumChance', label: 'Podium' }
+		{ key: 'name', label: 'Racer', group: '' },
+		{ key: 'startingProjected', label: 'xPoints', group: 'Starting stats' },
+		{ key: 'startingWinChance', label: 'Win GP %', group: 'Starting stats' },
+		{ key: 'points', label: 'Points', group: 'Ongoing stats' },
+		{ key: 'projected', label: 'xPoints', group: 'Ongoing stats' },
+		{ key: 'maximum', label: 'Max points', group: 'Ongoing stats' },
+		{ key: 'winChance', label: 'Win GP %', group: 'Ongoing stats' }
 	] as const;
 	type OutlookSortKey = (typeof outlookColumns)[number]['key'];
 	let outlookSort = $state<{ key: OutlookSortKey; direction: 'asc' | 'desc' }>({
@@ -194,13 +205,20 @@
 						: 'desc'
 		};
 	};
-	const sortedOutlook = $derived(
-		(gpOutlook?.players ?? [])
-			.map((player) => ({ ...player, name: getPlayerName(playerList ?? [], player.userId) }))
+	const sortedOutlook = $derived.by(() => {
+		const startingPlayers = new Map(
+			startingOutlook?.players.map((player) => [player.userId, player])
+		);
+		return (gpOutlook?.players ?? [])
+			.map((player) => ({
+				...player,
+				name: getPlayerName(playerList ?? [], player.userId),
+				startingProjected: startingPlayers.get(player.userId)?.projected ?? null,
+				startingWinChance: startingPlayers.get(player.userId)?.winChance ?? null
+			}))
 			.sort((a, b) => {
 				const first = a[outlookSort.key];
 				const second = b[outlookSort.key];
-				// Keep unavailable forecasts last in either direction.
 				if (first == null && second != null) return 1;
 				if (second == null && first != null) return -1;
 				const difference =
@@ -211,8 +229,8 @@
 					(outlookSort.direction === 'asc' ? difference : -difference) ||
 					a.name.localeCompare(b.name)
 				);
-			})
-	);
+			});
+	});
 
 	const pointsComparison = $derived(
 		resultsTable && resultsTable.data && stats && stats.data
@@ -922,30 +940,19 @@
 									<Table.Footer>
 										<Table.Row>
 											<Table.Head colspan={2} scope="row"
-												>{tab === 'cumulative' ? 'Total points' : 'Expected points'}</Table.Head
+												>{tab === 'cumulative' ? 'Total points' : 'Points'}</Table.Head
 											>
 											{#each grandPrixDetails.participants as playerId (playerId)}
-												{@const expected =
-													tab === 'cumulative'
-														? (cumulativeRows.at(-1)?.cells.find((cell) => cell.userId === playerId)
-																?.total ?? 0)
-														: expectedPoints?.get(playerId)}
-												<Table.Cell class="text-center tabular-nums">
-													{expected == null ? '—' : Number(expected.toFixed(1))}
-												</Table.Cell>
+												{@const points =
+													cumulativeRows.at(-1)?.cells.find((cell) => cell.userId === playerId)
+														?.total ?? 0}
+												<Table.Cell class="text-center tabular-nums">{points}</Table.Cell>
 											{/each}
 										</Table.Row>
 									</Table.Footer>
 								</Table.Root>
 							</Card.Content>
 						</ScrollArea>
-						{#if tab === 'results'}
-							<p class="text-muted-foreground max-w-xl px-6 pb-6 text-xs">
-								Projected final points: recorded finishes plus remaining races ranked by win
-								probability. Equal probabilities share place points. A dash means there is not
-								enough track history to predict.
-							</p>
-						{/if}
 					{/if}
 				</Card.Root>
 			</div>
@@ -958,14 +965,27 @@
 								.participants.length} racers{:else}Loading stats…{/if}
 					</Card.Description>
 				</Card.Header>
-				<Card.Content>
+				<Card.Content class="space-y-3">
 					{#if gpOutlook}
-						<Table.Root>
+						<Table.Root aria-label="Grand Prix stats">
 							<Table.Header>
+								<Table.Row>
+									<Table.Head></Table.Head>
+									<Table.Head colspan={2} scope="colgroup" class="border-l text-center"
+										>Starting stats</Table.Head
+									>
+									<Table.Head colspan={4} scope="colgroup" class="border-l text-center"
+										>Ongoing stats</Table.Head
+									>
+								</Table.Row>
 								<Table.Row>
 									{#each outlookColumns as column (column.key)}
 										<Table.Head
-											class={column.key === 'name' ? '' : 'text-right'}
+											class={cn(
+												column.key === 'name' ? '' : 'text-right',
+												(column.key === 'startingProjected' || column.key === 'points') &&
+													'border-l'
+											)}
 											aria-sort={outlookSort.key === column.key
 												? outlookSort.direction === 'asc'
 													? 'ascending'
@@ -976,7 +996,7 @@
 												variant="ghost"
 												size="sm"
 												class="-mx-2 gap-1 px-2 text-xs"
-												aria-label={`Sort by ${column.label}`}
+												aria-label={`Sort by ${column.group ? `${column.group} ` : ''}${column.label}`}
 												onclick={() => sortOutlook(column.key)}
 											>
 												{column.label}
@@ -993,34 +1013,31 @@
 							<Table.Body>
 								{#each sortedOutlook as player (player.userId)}
 									<Table.Row>
-										<Table.Cell class="font-medium"
-											>{getPlayerName(playerList ?? [], player.userId)}</Table.Cell
-										>
-										<Table.Cell class="text-right tabular-nums">{player.points}</Table.Cell>
-										<Table.Cell class="text-right tabular-nums">{player.remaining}</Table.Cell>
-										<Table.Cell class="text-right tabular-nums"
-											>{player.projected == null
-												? '—'
-												: Number(player.projected.toFixed(1))}</Table.Cell
-										>
-										<Table.Cell class="text-right tabular-nums">{player.minimum}</Table.Cell>
-										<Table.Cell class="text-right font-medium tabular-nums"
-											>{player.maximum}</Table.Cell
-										>
-										<Table.Cell class="text-right font-medium tabular-nums"
-											>{player.winChance == null
-												? '—'
-												: `${Number(player.winChance.toFixed(1))}%`}</Table.Cell
-										>
-										<Table.Cell class="text-right tabular-nums"
-											>{player.podiumChance == null
-												? '—'
-												: `${Number(player.podiumChance.toFixed(1))}%`}</Table.Cell
-										>
+										{#each outlookColumns as column (column.key)}
+											{@const value = player[column.key]}
+											<Table.Cell
+												class={cn(
+													column.key === 'name' ? 'font-medium' : 'text-right tabular-nums',
+													(column.key === 'startingProjected' || column.key === 'points') &&
+														'border-l'
+												)}
+											>
+												{value == null
+													? '—'
+													: typeof value === 'number'
+														? `${Number(value.toFixed(1))}${column.key === 'winChance' || column.key === 'startingWinChance' ? '%' : ''}`
+														: value}
+											</Table.Cell>
+										{/each}
 									</Table.Row>
 								{/each}
 							</Table.Body>
 						</Table.Root>
+						{#if startingStats && startingStats.error}
+							<p class="text-destructive text-sm">Unable to load starting stats.</p>
+						{:else if !startingOutlook}
+							<p class="text-muted-foreground text-sm">Loading starting stats…</p>
+						{/if}
 					{/if}
 				</Card.Content>
 			</Card.Root>

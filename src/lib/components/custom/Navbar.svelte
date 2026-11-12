@@ -67,6 +67,7 @@
 			<Button
 				variant="outline"
 				size="icon"
+				class="size-10.5"
 				onclick={toggleMode}
 				aria-label={mode.current === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 				title={mode.current === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

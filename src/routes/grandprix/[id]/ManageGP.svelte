@@ -127,8 +127,8 @@
 				<Dialog.Header>
 					<Dialog.Title>Delete Grand Prix {grandPrix.order}?</Dialog.Title>
 					<Dialog.Description>
-						This permanently deletes every race, result, and standing in this Grand Prix. It cannot
-						be undone.
+						This hides the Grand Prix from history and statistics. Its races, results, and standings
+						are kept so this Grand Prix can be restored.
 					</Dialog.Description>
 				</Dialog.Header>
 				<Dialog.Footer>

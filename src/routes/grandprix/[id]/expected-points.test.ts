@@ -40,11 +40,15 @@ test('completed GPs equal actual scores even without probability data', () => {
 	assert.deepEqual(project([], []), { a: 0, b: 0, c: 0, d: 0 });
 });
 
-test('ties share the points for their places without depending on participant order', () => {
+test('exact ties use stable racer IDs without depending on participant order', () => {
 	const tied = [
 		{ trackId: 'one', chances: participants.map((userId) => ({ user: { userId }, chance: 25 })) }
 	];
-	assert.deepEqual(project([race('one')], tied), { a: 11.5, b: 11.5, c: 11.5, d: 11.5 });
+	assert.deepEqual(project([race('one')], tied), { a: 15, b: 12, c: 10, d: 9 });
+	assert.deepEqual(
+		Object.fromEntries(calculateExpectedPoints([...participants].reverse(), [race('one')], tied)),
+		{ a: 15, b: 12, c: 10, d: 9 }
+	);
 });
 
 test('missing history does not invent a forecast; invalid finishes remain unrecorded', () => {
@@ -90,7 +94,7 @@ test("comparison uses each player's recorded races, excludes invalid finishes, a
 	assert.equal(calculatePointsComparison(participants, races, stats)[0].difference, 3);
 });
 
-test('comparison preserves missing history and shared points for tied probabilities', () => {
+test('comparison preserves missing history and resolves tied probabilities', () => {
 	assert.deepEqual(calculatePointsComparison(participants, [race('one', [1])], [])[0], {
 		userId: 'a',
 		recordedRaces: 1,
@@ -105,8 +109,8 @@ test('comparison preserves missing history and shared points for tied probabilit
 		userId: 'a',
 		recordedRaces: 1,
 		actual: 15,
-		expected: 11.5,
-		difference: 3.5
+		expected: 15,
+		difference: 0
 	});
 });
 
@@ -140,4 +144,55 @@ test('race-by-race comparisons sum to the total and preserve unrecorded cells', 
 			total.actual
 		);
 	}
+});
+
+test('equal rounded chances use unrounded model weight before other track metrics', () => {
+	const tied = [
+		{
+			trackId: 'one',
+			chances: participants.map((userId, i) => ({
+				user: { userId, finalWeight: 1 + i / 10000, average: i + 1 },
+				chance: 25
+			}))
+		}
+	];
+	assert.deepEqual(project([race('one')], tied), { a: 9, b: 10, c: 12, d: 15 });
+});
+
+test('track average, recent average, best finish, then sample size break equal chances', () => {
+	const cases = [
+		participants.map((userId, i) => ({ userId, average: 4 - i })),
+		participants.map((userId, i) => ({ userId, average: 3, lastFiveResults: [4 - i, null, 25] })),
+		participants.map((userId, i) => ({
+			userId,
+			average: 3,
+			lastFiveResults: [3],
+			bestResult: 4 - i
+		})),
+		participants.map((userId, i) => ({
+			userId,
+			average: 3,
+			lastFiveResults: [3],
+			bestResult: 1,
+			count: i + 1
+		}))
+	];
+	for (const users of cases) {
+		const tied = [{ trackId: 'one', chances: users.map((user) => ({ user, chance: 25 })) }];
+		assert.deepEqual(project([race('one')], tied), { a: 9, b: 10, c: 12, d: 15 });
+		assert.deepEqual(project([race('one', [null, 1])], tied), { a: 9, b: 15, c: 10, d: 12 });
+	}
+});
+
+test('secondary metrics do not override distinct win chances', () => {
+	const chances = [
+		{
+			trackId: 'one',
+			chances: participants.map((userId, i) => ({
+				user: { userId, finalWeight: i + 1, average: 4 - i },
+				chance: 40 - i * 10
+			}))
+		}
+	];
+	assert.deepEqual(project([race('one')], chances), { a: 15, b: 12, c: 10, d: 9 });
 });
