@@ -11,10 +11,17 @@ test('starting history excludes the selected and later GPs', async () => {
 		races: gps.map((gp) => ({
 			_id: `race${gp.order}`,
 			grandPrixId: gp._id,
+			order: 0,
 			trackStartId: 'track',
 			trackEndId: 'track'
 		})),
-		results: gps.map((gp) => ({ raceId: `race${gp.order}`, userId: 'player', position: gp.order }))
+		results: gps.map((gp) => ({
+			_id: `result${gp.order}`,
+			_creationTime: gp.order,
+			raceId: `race${gp.order}`,
+			userId: 'player',
+			position: gp.order
+		}))
 	};
 	const db = {
 		get: async (id: string) => gps.find((gp) => gp._id === id) ?? null,

@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import CharacterKartStats from '$lib/components/custom/CharacterKartStats.svelte';
 	import * as Select from '$lib/components/ui/select/index';
 	import { convexStore } from '$lib/stores/states.svelte';
-	import type { Id } from '../../convex/_generated/dataModel';
-	import { characterDataset, kartDataset } from '$lib/data/StatsDataset';
+	import type { Id } from '../../../convex/_generated/dataModel';
+	import { calculatorStats, characterDataset, kartDataset } from '$lib/data/StatsDataset';
 	import {
 		getCharacterImage,
 		getCharacterName,
@@ -13,17 +12,14 @@
 		getStatColour
 	} from '$lib/utils';
 	import { scaleBand } from 'd3-scale';
-	import { BarChart, type ChartState } from 'layerchart';
-	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
+	import { BarChart } from 'layerchart';
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
-	import { cubicInOut } from 'svelte/easing';
 	import * as Table from '$lib/components/ui/table/index.js';
-	import { Content } from '$lib/components/ui/dialog';
-	import Separator from '$lib/components/ui/separator/separator.svelte';
+	import { Label } from '$lib/components/ui/label';
 
-	let characterList = $derived(convexStore.allCharacters);
-	let kartList = $derived(convexStore.allKarts);
+	let characterList = $derived(convexStore.allCharacters ?? []);
+	let kartList = $derived(convexStore.allKarts ?? []);
 
 	let selectedCharacterId = $derived(
 		characterList?.find((character) => character._id === page.url.searchParams.get('character'))
@@ -33,16 +29,10 @@
 			)?._id ??
 			characterList?.[0]?._id
 	);
-	let selectedCharacter = $derived(
-		characterList?.find((char) => char._id === (selectedCharacterId as Id<'characters'>))
-	);
 	let selectedKartId = $derived(
 		kartList?.find((kart) => kart._id === page.url.searchParams.get('kart'))?._id ??
 			kartList?.find((kart) => kart._id === localStorage.getItem('selectedKartId'))?._id ??
 			kartList?.[0]?._id
-	);
-	let selectedKart = $derived(
-		kartList?.find((kart) => kart._id === (selectedKartId as Id<'karts'>))
 	);
 
 	let characterName = $derived(
@@ -57,125 +47,140 @@
 	let kartImage = $derived(getKartImage(kartList, selectedKartId as Id<'karts'>));
 	let kartStats = $derived(kartDataset.getByName(kartName));
 
-	const chartData = $derived([
-		{ stat: 'Road Speed', character: characterStats?.roadSpeed, kart: kartStats?.roadSpeed },
-		{
-			stat: 'Terrain Speed',
-			character: characterStats?.terrainSpeed,
-			kart: kartStats?.terrainSpeed
-		},
-		{ stat: 'Water Speed', character: characterStats?.waterSpeed, kart: kartStats?.waterSpeed },
-		{
-			stat: 'Acceleration',
-			character: characterStats?.acceleration,
-			kart: kartStats?.acceleration
-		},
-		{ stat: 'Weight', character: characterStats?.weight, kart: kartStats?.weight },
-		{
-			stat: 'Road Handling',
-			character: characterStats?.roadHandling,
-			kart: kartStats?.roadHandling
-		},
-		{
-			stat: 'Terrain Handling',
-			character: characterStats?.terrainHandling,
-			kart: kartStats?.terrainHandling
-		},
-		{
-			stat: 'Water Handling',
-			character: characterStats?.waterHandling,
-			kart: kartStats?.waterHandling
-		}
-	]);
+	const chartData = $derived(
+		calculatorStats.map(({ key, label }) => ({
+			stat: label,
+			character: characterStats?.[key],
+			kart: kartStats?.[key]
+		}))
+	);
+	const chartMaximum = $derived(
+		Math.max(12, ...chartData.flatMap(({ character, kart }) => [character ?? 0, kart ?? 0]))
+	);
 	const chartConfig = {
-		character: { label: 'character', color: 'var(--chart-2)' },
-		kart: { label: 'kart', color: '#f5cd30' }
+		character: { label: 'Character', color: 'var(--chart-2)' },
+		kart: { label: 'Kart', color: 'var(--color-lapita)' }
 	} satisfies Chart.ChartConfig;
-	let context = $state<ChartState>();
+	const statsAvailable = $derived(!!characterStats && !!kartStats);
+	const average = (character: number | undefined, kart: number | undefined) =>
+		character === undefined || kart === undefined ? undefined : (character + kart) / 2;
 </script>
 
-<div class="flex flex-col items-center justify-center gap-2 py-4">
-	<div class="flex flex-wrap gap-2">
-		<Card.Root>
+<svelte:head>
+	<title>Calculator · Lapita</title>
+	<meta
+		name="description"
+		content="Explore character and kart stats for your Lapita combination."
+	/>
+</svelte:head>
+
+<main class="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
+	<header class="border-b pb-7">
+		<h1 class="font-title text-2xl sm:text-3xl">Calculator</h1>
+	</header>
+
+	<div class="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+		<Card.Root class="min-w-0 rounded-md shadow-none">
 			<Card.Header>
-				<Card.Title>Combo Select</Card.Title>
-				<Card.Description>Character and Kart combination selection</Card.Description>
+				<h2 class="font-title text-lg">Your combination</h2>
 			</Card.Header>
-			<Card.Content>
-				<div class="flex w-72 flex-col gap-2">
-					<div>
-						<Select.Root type="single" bind:value={selectedCharacterId}>
-							<Select.Label>Character</Select.Label>
-							<Select.Trigger class="w-[280px]">
-								{selectedCharacterId && getCharacterName(characterList, selectedCharacterId)}
-							</Select.Trigger>
-							<Select.Content>
-								{#each characterList as { name, _id } (_id)}
-									<Select.Item value={_id}>{name}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-					<div>
-						<img
-							class="mx-auto h-24"
+			<Card.Content class="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+				<div class="min-w-0 space-y-3">
+					<Label for="calculator-character">Character</Label>
+					<Select.Root type="single" bind:value={selectedCharacterId}>
+						<Select.Trigger
+							id="calculator-character"
+							class="w-full"
+							aria-label="Character"
+							disabled={!characterList?.length}
+						>
+							<span class="truncate">{characterName || 'Choose a character'}</span>
+						</Select.Trigger>
+						<Select.Content>
+							{#each characterList ?? [] as { name, _id } (_id)}
+								<Select.Item value={_id}>{name}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					{#if characterImage}<img
+							class="mx-auto h-28 w-full object-contain"
 							src={`/characters/${characterImage}.png`}
 							alt={characterName}
-						/>
-					</div>
-					<Separator />
-					<div>
-						<Select.Root type="single" bind:value={selectedKartId}>
-							<Select.Label>Kart</Select.Label>
-							<Select.Trigger class="w-[280px]">
-								{selectedKart && getKartName(kartList, selectedKartId)}
-							</Select.Trigger>
-							<Select.Content>
-								{#each kartList as { name, _id } (_id)}
-									<Select.Item value={_id}>{name}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-					<div>
-						<img class="mx-auto h-24" src={`/karts/${kartImage}.png`} alt={kartName} />
-					</div>
+						/>{/if}
+				</div>
+				<div class="min-w-0 space-y-3">
+					<Label for="calculator-kart">Kart</Label>
+					<Select.Root type="single" bind:value={selectedKartId}>
+						<Select.Trigger
+							id="calculator-kart"
+							class="w-full"
+							aria-label="Kart"
+							disabled={!kartList?.length}
+						>
+							<span class="truncate">{kartName || 'Choose a kart'}</span>
+						</Select.Trigger>
+						<Select.Content>
+							{#each kartList ?? [] as { name, _id } (_id)}
+								<Select.Item value={_id}>{name}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					{#if kartImage}<img
+							class="mx-auto h-28 w-full object-contain"
+							src={`/karts/${kartImage}.png`}
+							alt={kartName}
+						/>{/if}
 				</div>
 			</Card.Content>
 		</Card.Root>
 
-		<Card.Root>
+		<Card.Root class="min-w-0 rounded-md shadow-none">
 			<Card.Header>
-				<Card.Title>Stats Table</Card.Title>
-				<Card.Description>Character and Kart stats with average</Card.Description>
+				<h2 class="font-title text-lg">Combination stats</h2>
+				<Card.Description id="average-description"
+					>Each combined average is (character + kart) ÷ 2 for that stat, using Lapita’s stat scale.
+					Each stat has its own zero-based scale. Stats shared by every character and kart are
+					omitted.</Card.Description
+				>
 			</Card.Header>
 			<Card.Content>
-				<Table.Root>
-					<Table.Header>
-						<Table.Row>
-							<Table.Head class="w-40">Stat</Table.Head>
-							<Table.Head class="w-20 text-center">Character</Table.Head>
-							<Table.Head class="w-20 text-center">Kart</Table.Head>
-							<Table.Head class="w-20 text-center">Average</Table.Head>
-						</Table.Row>
-					</Table.Header>
+				{#if !statsAvailable}<p class="text-muted-foreground mb-4 text-sm" role="status">
+						Some stats are unavailable for this selection. Choose another character or kart to see
+						all combined values.
+					</p>{/if}
+				<Table.Root
+					class="tabular-nums"
+					aria-label="Character, kart and combined stats"
+					aria-describedby="average-description"
+				>
+					<Table.Header
+						><Table.Row>
+							<Table.Head scope="col">Stat</Table.Head>
+							<Table.Head scope="col" class="text-right">Character</Table.Head>
+							<Table.Head scope="col" class="text-right">Kart</Table.Head>
+							<Table.Head scope="col" class="bg-muted/50 text-foreground text-right"
+								>Combined avg.</Table.Head
+							>
+						</Table.Row></Table.Header
+					>
 					<Table.Body>
-						{#each chartData as { stat, character, kart }}
+						{#each chartData as { stat, character, kart } (stat)}
+							{@const combined = average(character, kart)}
 							<Table.Row>
-								<Table.Cell>{stat}</Table.Cell>
-								<Table.Cell
-									class="text-center text-black"
-									style="background-color: {getStatColour(character)};">{character}</Table.Cell
+								<th scope="row" class="h-10 px-2 text-left font-medium whitespace-nowrap">{stat}</th
 								>
-								<Table.Cell
-									class="text-center text-black"
-									style="background-color: {getStatColour(kart)};">{kart}</Table.Cell
-								>
-								<Table.Cell
-									class="text-center text-black"
-									style="background-color: {getStatColour(Math.round((kart + character) / 2))};"
-									>{(kart + character) / 2}</Table.Cell
-								>
+								<Table.Cell class="text-muted-foreground text-right">{character ?? '—'}</Table.Cell>
+								<Table.Cell class="text-muted-foreground text-right">{kart ?? '—'}</Table.Cell>
+								<Table.Cell class="bg-muted/50 text-right font-semibold">
+									<span class="inline-flex items-center gap-2">
+										{#if combined !== undefined}<span
+												class="size-2 shrink-0 rounded-full"
+												style:background-color={getStatColour(Math.round(combined))}
+												aria-hidden="true"
+											></span>{/if}
+										{combined ?? '—'}
+									</span>
+								</Table.Cell>
 							</Table.Row>
 						{/each}
 					</Table.Body>
@@ -183,52 +188,61 @@
 			</Card.Content>
 		</Card.Root>
 	</div>
-	<div class="w-full max-w-5xl">
-		<Card.Root>
-			<Card.Header>
-				<Card.Title>Combined Stats</Card.Title>
-				<Card.Description
-					>Character stats in <span class="font-medium text-[#00bc7d]">green</span> and kart stats
-					in <span class="font-medium text-[#f6cc30]">yellow</span></Card.Description
+
+	<Card.Root class="mt-6 min-w-0 rounded-md shadow-none">
+		<Card.Header>
+			<h2 class="font-title text-lg">Stat breakdown</h2>
+			<Card.Description
+				>Character and kart values side by side. Exact values and combined averages are in the table
+				above.</Card.Description
+			>
+			<div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+				<span class="flex items-center gap-2"
+					><span class="h-2.5 w-4 rounded-xs" style:background-color={chartConfig.character.color}
+					></span>Character</span
 				>
-			</Card.Header>
-			<Card.Content class=" max-w-5xl py-4">
-				<Chart.Container config={chartConfig} class="h-64 w-full">
+				<span class="flex items-center gap-2"
+					><span class="bg-lapita h-2.5 w-4 rounded-xs"></span>Kart</span
+				>
+			</div>
+		</Card.Header>
+		<Card.Content>
+			{#if statsAvailable}
+				<Chart.Container
+					config={chartConfig}
+					class="aspect-auto w-full"
+					style={`height: ${chartData.length * 46 + 36}px`}
+					aria-label={`Character and kart values for all ${chartData.length} stats. Exact values are in the combination stats table.`}
+				>
 					<BarChart
-						bind:context
 						data={chartData}
-						xScale={scaleBand().padding(0.25)}
-						x="stat"
-						axis="x"
+						y="stat"
+						orientation="horizontal"
+						yScale={scaleBand().padding(0.3)}
+						y1Scale={scaleBand().paddingInner(0.15)}
+						xDomain={[0, chartMaximum]}
+						padding={{ left: 112, right: 12, top: 8, bottom: 28 }}
 						series={[
-							{ key: 'character', label: 'Character', color: chartConfig.character.color },
-							{ key: 'kart', label: 'Kart', color: chartConfig.kart.color }
-						]}
-						x1Scale={scaleBand().paddingInner(0.2)}
-						seriesLayout="group"
-						rule={false}
-						props={{
-							bars: {
-								stroke: 'none',
-								strokeWidth: 0,
-								rounded: 'top',
-								// use the height of the chart to animate the bars
-								initialY: context?.height,
-								initialHeight: 0,
-								motion: {
-									y: { type: 'tween', duration: 500, easing: cubicInOut },
-									height: { type: 'tween', duration: 500, easing: cubicInOut }
-								}
+							{
+								key: 'character',
+								label: chartConfig.character.label,
+								color: chartConfig.character.color
 							},
-							highlight: { area: { fill: 'none' } }
-						}}
+							{ key: 'kart', label: chartConfig.kart.label, color: chartConfig.kart.color }
+						]}
+						seriesLayout="group"
+						axis={true}
+						rule={false}
+						props={{ xAxis: { ticks: 6 }, bars: { stroke: 'none', radius: 3 } }}
 					>
-						{#snippet tooltip()}
-							<Chart.Tooltip />
-						{/snippet}
+						{#snippet tooltip()}<Chart.Tooltip
+								labelFormatter={(_, payload) => `${payload[0]?.payload?.stat ?? ''}`}
+							/>{/snippet}
 					</BarChart>
 				</Chart.Container>
-			</Card.Content>
-		</Card.Root>
-	</div>
-</div>
+			{:else}<p class="text-muted-foreground py-10 text-sm">
+					The chart appears when both selections have stats.
+				</p>{/if}
+		</Card.Content>
+	</Card.Root>
+</main>

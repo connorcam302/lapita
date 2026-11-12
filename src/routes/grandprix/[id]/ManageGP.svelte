@@ -3,7 +3,6 @@
 	import SetEra from '$lib/components/custom/SetEra.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { ConvexError } from 'convex/values';
 	import { useConvexClient } from 'convex-svelte';
 	import { toast } from 'svelte-sonner';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
@@ -37,12 +36,8 @@
 			selected = [];
 			addOpen = false;
 			toast.success('Racers added. You can now record their results for any race.');
-		} catch (error) {
-			toast.error(
-				error instanceof ConvexError
-					? String(error.data)
-					: 'Could not add racers. Your selection has been kept. Try again.'
-			);
+		} catch {
+			toast.error('Could not add racers. Your selection has been kept. Try again.');
 		} finally {
 			adding = false;
 		}
@@ -56,12 +51,8 @@
 			await client.mutation(api.gps.setComplete, { grandPrixId: grandPrix._id, complete });
 			completeOpen = false;
 			toast.success(complete ? 'Grand Prix marked complete.' : 'Manual completion removed.');
-		} catch (error) {
-			toast.error(
-				error instanceof ConvexError
-					? String(error.data)
-					: 'Could not update completion. Try again.'
-			);
+		} catch {
+			toast.error('Could not update completion. Try again.');
 		} finally {
 			completing = false;
 		}
@@ -101,7 +92,7 @@
 					<Sheet.Title>Add racers</Sheet.Title>
 					<Sheet.Description>
 						Racers start on zero points with blank entries for every race. Earlier results can be
-						filled in. Races count as complete when every racer has a result.
+						filled in. Races are fully recorded when every racer has a valid finish.
 					</Sheet.Description>
 				</Sheet.Header>
 				<div class="min-h-0 flex-1 overflow-y-auto px-4 py-2">
@@ -165,8 +156,8 @@
 							Completion will depend on every racer having a valid finish in every race again.
 						{:else}
 							End this Grand Prix using recorded points. Missing finishes earn zero points, and tied
-							leaders each receive a GP win. Results remain editable. You can undo manual
-							completion.
+							leaders each receive a GP win. Partially recorded races still do not count in Stats or
+							race records. Results remain editable. You can undo manual completion.
 						{/if}
 					</Dialog.Description>
 				</Dialog.Header>

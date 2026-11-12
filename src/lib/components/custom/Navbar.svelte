@@ -10,6 +10,11 @@
 
 	const links = [
 		{
+			label: 'Players',
+			href: resolve('/players'),
+			active: (path: string) => path === '/players' || path.startsWith('/players/')
+		},
+		{
 			label: 'Grand Prix',
 			href: resolve('/grandprix'),
 			active: (path: string) => path === '/grandprix' || path.startsWith('/grandprix/')
@@ -39,7 +44,7 @@
 
 <header class="border-border bg-background border-b">
 	<div
-		class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 pt-2 sm:px-6 lg:flex-nowrap lg:py-2"
+		class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 pt-2 sm:px-6 xl:flex-nowrap xl:py-2"
 	>
 		<a
 			href={resolve('/')}
@@ -53,7 +58,7 @@
 		</a>
 		<nav
 			aria-label="Main navigation"
-			class="order-last flex w-full flex-wrap gap-x-4 gap-y-0 lg:order-none lg:w-auto lg:gap-5"
+			class="order-last flex w-full flex-wrap gap-x-4 gap-y-0 xl:order-none xl:w-auto xl:gap-5"
 		>
 			{#each links as link (link.href)}
 				{@const active = link.active(page.url.pathname)}
@@ -67,7 +72,7 @@
 				>
 			{/each}
 		</nav>
-		<div class="flex min-w-0 flex-1 items-center gap-2 lg:ml-auto lg:max-w-sm">
+		<div class="flex min-w-0 flex-1 items-center gap-2 xl:ml-auto xl:max-w-sm">
 			<div class="min-w-0 flex-1"><SearchBox /></div>
 			<Button
 				variant="outline"

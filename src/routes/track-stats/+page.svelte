@@ -1,34 +1,49 @@
 <script lang="ts">
+	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { page } from '$app/state';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import { convexStore } from '$lib/stores/states.svelte';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../convex/_generated/api';
 	import { Button } from '$lib/components/ui/button';
 	import DataTable from './DataTable.svelte';
+	import { trackOwnership } from '$lib/track-ownership';
+	import TrackOwnership from './TrackOwnership.svelte';
 	import { columns } from './columns';
 
 	const trackData = useQuery(api.races.getStats, {});
 	const selectedTrack = $derived(
 		convexStore.allTracks?.find((track) => track._id === page.url.searchParams.get('track'))
 	);
+	const ownershipView = $derived(page.url.searchParams.get('view') === 'ownership');
+	const filteredTracks = $derived(
+		trackData.data?.filter((track) => !selectedTrack || track.trackId === selectedTrack._id)
+	);
+	function viewHref(ownership: boolean, clearTrack = false) {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (ownership) params.set('view', 'ownership');
+		else params.delete('view');
+		if (clearTrack) params.delete('track');
+		const query = params.toString();
+		return `${resolve('/track-stats')}${query ? `?${query}` : ''}`;
+	}
 	const tableData = $derived(
 		trackData.data
-			?.filter((track) => !selectedTrack || track.trackId === selectedTrack._id)
-			.map((track) => ({
-				trackId: track.trackId,
-				trackImage: track.trackImg,
-				trackName: track.trackName,
-				count: track.counts,
-				average: Number.isFinite(track.averageParticipants) ? track.averageParticipants : null,
-				bestPlayerName: track.userAverages[0]?.userName ?? '—',
-				bestAverage: track.userAverages[0]?.average ?? null,
-				bestPlayerId: track.userAverages[0]?.userId ?? null,
-				gap:
-					track.userAverages.length > 1
-						? track.userAverages[1].average! - track.userAverages[0].average!
-						: null
-			}))
+			? trackOwnership(filteredTracks ?? []).map((track) => ({
+					trackId: track.trackId,
+					trackImage: track.trackImg,
+					trackName: track.trackName,
+					count: track.counts,
+					average: Number.isFinite(track.averageParticipants) ? track.averageParticipants : null,
+					bestPlayerName:
+						track.leaders.map((player) => player.userName).join(' / ') ||
+						(track.status === 'unraced' ? 'Unraced' : 'No player with 5 results'),
+					bestAverage: track.leaders[0]?.average ?? null,
+					bestPlayerId: track.leaders.length === 1 ? track.leaders[0].userId : null,
+					gap: track.gap
+				}))
+			: undefined
 	);
 </script>
 
@@ -52,43 +67,59 @@
 			</p>
 		{/if}
 	</header>
+	<nav class="mt-6 flex flex-wrap gap-2" aria-label="Track stats views">
+		<Button
+			href={viewHref(false)}
+			variant={ownershipView ? 'outline' : 'secondary'}
+			aria-current={!ownershipView ? 'page' : undefined}>Table</Button
+		>
+		<Button
+			href={viewHref(true)}
+			variant={ownershipView ? 'secondary' : 'outline'}
+			aria-current={ownershipView ? 'page' : undefined}>Ownership grid</Button
+		>
+	</nav>
+	{#if !ownershipView}<StatisticsHelp scope="track" />{/if}
 
 	{#if trackData.error}
 		<section class="py-12" role="alert">
 			<h2 class="text-xl font-semibold">Could not load track stats</h2>
-			<p class="text-muted-foreground mt-2">
-				Check your connection and reload the page to try again.
-			</p>
-			<Button variant="outline" class="mt-4" onclick={() => window.location.reload()}
-				>Reload page</Button
-			>
+			<p class="text-muted-foreground mt-2">Check your connection and try again.</p>
+			<Button variant="outline" class="mt-4" onclick={trackData.retry}>Try again</Button>
 		</section>
 	{:else if !tableData}
 		<p class="text-muted-foreground py-12" role="status">Loading track stats…</p>
 	{:else}
 		<section class="mt-6" aria-label="Track comparison">
-			<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-				<p class="text-muted-foreground text-sm">
-					{selectedTrack
-						? `Showing ${selectedTrack.name}`
-						: 'All-time stats · Select a track for results and race history.'}
-				</p>
-				{#if selectedTrack}
-					<Button variant="outline" size="sm" href={resolve('/track-stats')}>Show all tracks</Button
-					>
-				{/if}
-			</div>
-			<DataTable {columns} data={tableData} />
-			<div class="text-muted-foreground mt-5 grid gap-2 text-sm sm:grid-cols-2 sm:gap-8">
-				<p>
-					Races are counted by their end track, including transitions. Avg. racers counts recorded
-					finishes per race.
-				</p>
-				<p>
-					The leading player has the lowest average finishing position. Lead gap is the difference
-					to the next player’s average.
-				</p>
-			</div>
+			{#if !ownershipView || selectedTrack}
+				<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+					<p class="text-muted-foreground text-sm">
+						{selectedTrack
+							? `Showing ${selectedTrack.name}`
+							: 'All-time stats · Select a track for results and race history.'}
+					</p>
+					{#if selectedTrack}
+						<Button variant="outline" size="sm" href={viewHref(ownershipView, true)}
+							>Show all tracks</Button
+						>
+					{/if}
+				</div>
+			{/if}
+			{#if ownershipView}
+				<TrackOwnership data={filteredTracks ?? []} />
+			{:else}
+				<DataTable {columns} data={tableData} />
+				<div class="text-muted-foreground mt-5 grid gap-2 text-sm sm:grid-cols-2 sm:gap-8">
+					<p>
+						Avg. finishes / race divides recorded finishes by all scheduled races, including those
+						with no results.
+					</p>
+					<p>
+						Leaders need at least five valid results on this track. Tied players share the lead.
+						Lead gap is the difference to the next player’s average.
+					</p>
+				</div>
+			{/if}
 		</section>
 	{/if}
 </main>

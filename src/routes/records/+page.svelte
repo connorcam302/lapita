@@ -1,6 +1,7 @@
 <script lang="ts">
+	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { resolve } from '$app/paths';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../convex/_generated/api';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -14,7 +15,7 @@
 					{
 						key: 'raceWins',
 						title: 'Most race wins',
-						description: 'First-place finishes in completed races.',
+						description: 'First-place finishes in fully recorded races.',
 						unit: 'Wins',
 						rows: records.data.raceWins
 					},
@@ -37,14 +38,14 @@
 						key: 'winStreak',
 						title: 'Longest winning streak',
 						description:
-							'Consecutive first places in race order, across GPs entered. Unfinished races break the streak.',
+							'Consecutive first places in race order, across GPs entered. Races with missing finishes break the streak.',
 						unit: 'Wins in a row',
 						rows: records.data.winStreak
 					},
 					{
 						key: 'podiums',
 						title: 'Most podium finishes',
-						description: 'Finishes in the top three in completed races.',
+						description: 'Finishes in the top three in fully recorded races.',
 						unit: 'Podiums',
 						rows: records.data.podiums
 					},
@@ -52,7 +53,7 @@
 						key: 'average',
 						title: 'Best average finish',
 						description:
-							'Lowest average position, with at least 10 completed races. Ranked before rounding.',
+							'Lowest average position, with at least 10 fully recorded races. Ranked before rounding.',
 						unit: 'Avg. finish',
 						rows: records.data.average
 					}
@@ -74,21 +75,18 @@
 		<h1 class="font-title text-2xl sm:text-3xl">Records</h1>
 		{#if records.data}
 			<p class="text-muted-foreground mt-4 text-sm tabular-nums">
-				{records.data.completedRaces.toLocaleString()} completed races · {records.data.completedGps.toLocaleString()}
+				{records.data.completedRaces.toLocaleString()} fully recorded races · {records.data.completedGps.toLocaleString()}
 				completed Grand Prix
 			</p>
 		{/if}
 	</header>
+	<StatisticsHelp scope="records" />
 
 	{#if records.error}
 		<section class="py-12" role="alert">
 			<h2 class="text-xl font-semibold">Could not load records</h2>
-			<p class="text-muted-foreground mt-2">
-				Check your connection and reload the page to try again.
-			</p>
-			<Button variant="outline" class="mt-4" onclick={() => window.location.reload()}
-				>Reload page</Button
-			>
+			<p class="text-muted-foreground mt-2">Check your connection and try again.</p>
+			<Button variant="outline" class="mt-4" onclick={records.retry}>Try again</Button>
 		</section>
 	{:else if !records.data}
 		<p class="text-muted-foreground py-12" role="status">Loading records…</p>
@@ -139,12 +137,12 @@
 												<a
 													class="text-muted-foreground focus-visible:ring-ring mt-1 block w-fit rounded-sm text-xs underline-offset-4 hover:underline focus-visible:ring-2"
 													href={resolve('/grandprix/[id]', { id: entry.grandPrixId })}
-													>Grand Prix {entry.grandPrixOrder} · {entry.raceCount} races</a
+													>Grand Prix {entry.grandPrixOrder} · {entry.raceCount} scheduled races</a
 												>
 											{:else if category.key === 'average'}<p
 													class="text-muted-foreground mt-1 text-xs"
 												>
-													{entry.raceCount} races
+													{entry.raceCount} fully recorded races
 												</p>{/if}
 										</Table.Cell>
 										<Table.Cell class="pr-4 text-right font-medium tabular-nums"
@@ -156,7 +154,7 @@
 								{:else}<Table.Row
 										><Table.Cell colspan={3} class="text-muted-foreground px-4 py-8 text-sm"
 											>{category.key === 'average'
-												? 'No player has completed 10 races yet.'
+												? 'No player has completed 10 fully recorded races yet.'
 												: category.key === 'gpWins' || category.key === 'gpScore'
 													? 'Complete a Grand Prix to set this record.'
 													: 'No qualifying finishes yet.'}</Table.Cell

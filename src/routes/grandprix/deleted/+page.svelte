@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { useConvexClient, useQuery } from 'convex-svelte';
+	import { useConvexClient } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { api } from '../../../convex/_generated/api';
@@ -32,8 +33,9 @@
 	<h1 class="font-title text-2xl sm:text-3xl">Deleted Grand Prix</h1>
 	{#if deleted.error}
 		<p class="mt-4 text-sm" role="alert">
-			Could not load deleted Grand Prix. Reload the page to try again.
+			Could not load deleted Grand Prix. Check your connection and try again.
 		</p>
+		<Button class="mt-3" variant="outline" onclick={deleted.retry}>Try again</Button>
 	{:else if !deleted.data}
 		<p class="text-muted-foreground mt-4 text-sm" role="status">Loading deleted Grand Prix…</p>
 	{:else}

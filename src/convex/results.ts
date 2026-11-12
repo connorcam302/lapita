@@ -1,8 +1,9 @@
 import { activeGpRows } from './gp_visibility';
 import { ConvexError, v } from 'convex/values';
 import { isValidFinishPosition } from '../lib/grand-prix';
+import { buildTrackForecastStats } from '../lib/race-forecast';
 import { mutation, query } from './_generated/server';
-import { getPlayerName, placementToPoints, calculateRaceWinChance } from '$lib/utils';
+import { placementToPoints, calculateRaceWinChance } from '$lib/utils';
 
 export const get = query({
 	args: { grandPrixId: v.id('grandPrix') },
@@ -194,19 +195,23 @@ export const stats = query({
 							.query('grandPrix')
 							.withIndex('by_id', (q) => q.eq('_id', race.grandPrixId))
 							.unique();
-						if (cutoff && (!grandPrix || grandPrix.order >= cutoff.order)) return [];
+						if (!grandPrix || (cutoff && grandPrix.order >= cutoff.order)) return [];
 						return results
-							.filter((result) => users.includes(result.userId) && result.position)
+							.filter(
+								(result) => users.includes(result.userId) && isValidFinishPosition(result.position)
+							)
 							.map((result) => {
 								return {
 									userId: result.userId,
 									kartId: result.kartId ?? undefined,
 									characterId: result.characterId ?? undefined,
 									position: result.position,
-									order: grandPrix?.order
+									grandPrixOrder: grandPrix.order,
+									raceOrder: race.order,
+									createdAt: result._creationTime,
+									id: result._id
 								};
-							})
-							.sort((a, b) => a.order - b.order);
+							});
 					})
 				);
 				return { track, results: racesWithResults.flat() };
@@ -214,43 +219,69 @@ export const stats = query({
 		);
 
 		const averages = resultsByTrack.map((track) => {
-			// Accumulate sum and count for each user
-			const trackAveragesByUserId = track.results.reduce(
-				(acc, result) => {
-					if (!acc[result.userId]) {
-						acc[result.userId] = { userId: result.userId, sum: 0, count: 0, results: [] };
-					}
-					acc[result.userId].sum += result.position;
-					acc[result.userId].count += 1;
-					acc[result.userId].results.push(result.position);
-					return acc;
-				},
-				{} as Record<string, { userId: string; sum: number; count: number; results: number[] }>
-			);
-
-			// Convert to array of averages
-			const trackStats = Object.values(trackAveragesByUserId).map(({ userId, sum, count }) => ({
-				userId,
-				avg: sum / count,
-				count,
-				lastFiveResults: track.results
-					.filter((result) => result.userId === userId)
-					.slice(-5)
-					.map((result) => result.position),
-				bestResult: track.results
-					.filter((result) => result.userId === userId)
-					.sort((a, b) => a.position - b.position)[0].position
-			}));
+			const trackStats = buildTrackForecastStats(track.results);
 			return {
 				trackId: track.track,
 				stats: trackStats,
 				chances: calculateRaceWinChance(
 					trackStats.map((stat) => {
-						return { ...stat, trackId: track.track };
+						return { ...stat, avg: stat.weightedAvg, trackId: track.track };
 					})
 				)[0]
 			};
 		});
 		return averages;
+	}
+});
+
+/** Bounded, on-demand profile progress; no extra full player-history subscription. */
+export const personalProgress = query({
+	args: {
+		userId: v.id('users'),
+		size: v.union(v.literal(1), v.literal(5), v.literal(10), v.literal(20)),
+		through: v.optional(v.number())
+	},
+	handler: async (ctx, { userId, size, through }) => {
+		if (through !== undefined && (!Number.isSafeInteger(through) || through < 1)) {
+			throw new ConvexError('Choose a positive whole GP number.');
+		}
+		const candidates = ctx.db
+			.query('grandPrix')
+			.withIndex('order', (q) => (through === undefined ? q : q.lte('order', through)))
+			.order('desc');
+		const gps: import('../lib/personal-progress').ProgressGp[] = [];
+		let scanned = 0;
+		let limited = false;
+		for await (const gp of candidates) {
+			if (scanned === 500) {
+				limited = true;
+				break;
+			}
+			scanned++;
+			if (gp.deletedAt !== undefined || !gp.participants.includes(userId)) continue;
+			const races = await ctx.db
+				.query('races')
+				.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp._id))
+				.collect();
+			const finishes = (
+				await Promise.all(
+					races.map(async (race) => {
+						const results = await ctx.db
+							.query('results')
+							.withIndex('raceIdAndUserId', (q) => q.eq('raceId', race._id).eq('userId', userId))
+							.collect();
+						return results.flatMap((result) =>
+							isValidFinishPosition(result.position)
+								? [{ trackEndId: race.trackEndId, position: result.position }]
+								: []
+						);
+					})
+				)
+			).flat();
+			if (finishes.length)
+				gps.push({ id: gp._id, order: gp.order, createdAt: gp._creationTime, finishes });
+			if (gps.length === size * 2) break;
+		}
+		return { gps, limited };
 	}
 });

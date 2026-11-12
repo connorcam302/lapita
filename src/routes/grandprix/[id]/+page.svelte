@@ -1,6 +1,11 @@
 <script lang="ts">
+	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import ManageGP from './ManageGP.svelte';
-	import { ConvexError } from 'convex/values';
+	import { buildRecap } from '$lib/gp-recap';
+	import QueryNotice from '$lib/components/custom/QueryNotice.svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
+	import { selectGpRace } from './race-selection';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { isValidFinishPosition } from '$lib/grand-prix';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
@@ -42,15 +47,16 @@
 	import MoveRight from '@lucide/svelte/icons/move-right';
 	import EditTrackButton from '$lib/components/custom/EditTrackButton.svelte';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import RaceWinChanceChart from './RaceWinChanceChart.svelte';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import MoveDownRight from '@lucide/svelte/icons/move-down-right';
 	import MoveUpRight from '@lucide/svelte/icons/move-up-right';
-	import { Progress } from '$lib/components/ui/progress/index.ts';
+	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { api } from '../../../convex/_generated/api';
-	import { useConvexClient, useQuery } from 'convex-svelte';
+	import { useConvexClient } from 'convex-svelte';
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import { convexStore } from '$lib/stores/states.svelte';
 	import { fade } from 'svelte/transition';
@@ -74,21 +80,13 @@
 		)
 	});
 
-	let kartList = $derived(convexStore.allKarts);
-	let characterList = $derived(convexStore.allCharacters);
-	let playerList = $derived(convexStore.allUsers);
-	let trackList = $derived(convexStore.allTracks);
+	let kartList = $derived(convexStore.allKarts ?? []);
+	let characterList = $derived(convexStore.allCharacters ?? []);
+	let playerList = $derived(convexStore.allUsers ?? []);
+	let trackList = $derived(convexStore.allTracks ?? []);
 
-	let raceList = $derived(
-		useQuery(api.races.inGrandPrix, { grandPrixId: grandPrixDetails!._id as Id<'grandPrix'> })
-	);
-
-	$inspect(raceList);
-	let standings = $derived(
-		useQuery(api.standings.getOne, {
-			grandPrixId: grandPrixDetails!._id as Id<'grandPrix'>
-		})
-	);
+	const raceList = useQuery(api.races.inGrandPrix, () => ({ grandPrixId: grandPrixDetails._id }));
+	const standings = useQuery(api.standings.getOne, () => ({ grandPrixId: grandPrixDetails._id }));
 
 	let selectedCharacterId = $derived(
 		characterList &&
@@ -116,45 +114,34 @@
 		playerList?.find((racer) => racer._id === (selectedUserId as Id<'users'>))
 	);
 	let selectedRaceId = $derived(
-		!raceList.isLoading &&
-			((page.url.searchParams.get('track') || raceList.data?.[0]?._id) as Id<'races'>)
+		selectGpRace(raceList.data ?? [], page.url.searchParams.get('track'))?._id
 	);
-
-	let selectedRace = $derived(
-		!raceList.isLoading ? raceList?.data?.find((track) => track._id === selectedRaceId) : null
+	const selectedRace = $derived(raceList.data?.find((race) => race._id === selectedRaceId));
+	const stats = useQuery(api.results.stats, () =>
+		raceList.data
+			? {
+					tracks: raceList.data.map((race) => race.trackEndId),
+					users: grandPrixDetails.participants
+				}
+			: 'skip'
 	);
-
-	let stats = $derived(
-		!raceList.isLoading &&
-			useQuery(api.results.stats, {
-				tracks: raceList.data.map((race) => race.trackEndId),
-				users: grandPrixDetails.participants
-			})
+	const startingStats = useQuery(api.results.stats, () =>
+		raceList.data
+			? {
+					tracks: raceList.data.map((race) => race.trackEndId),
+					users: grandPrixDetails.participants,
+					beforeGrandPrixId: grandPrixDetails._id
+				}
+			: 'skip'
 	);
-
-	const startingStats = $derived(
-		!raceList.isLoading &&
-			useQuery(api.results.stats, {
-				tracks: raceList.data.map((race) => race.trackEndId),
-				users: grandPrixDetails.participants,
-				beforeGrandPrixId: grandPrixDetails._id
-			})
-	);
-
-	let selectedRaceStats = $derived(
-		stats && !stats.isLoading && selectedRaceId
-			? stats.data.find((stat) => {
-					return stat.trackId === selectedRace?.trackEndId;
-				})
-			: undefined
+	const selectedRaceStats = $derived(
+		stats.data?.find((stat) => stat.trackId === selectedRace?.trackEndId)
 	);
 
 	let finishPosition = $state('');
 	let isSavingResult = $state(false);
 
-	const resultsTable = $derived(
-		!raceList.isLoading && useQuery(api.results.get, { grandPrixId: grandPrixDetails?._id })
-	);
+	const resultsTable = useQuery(api.results.get, () => ({ grandPrixId: grandPrixDetails._id }));
 
 	const cumulativeRows = $derived(
 		calculateCumulativePoints(
@@ -267,63 +254,29 @@
 			? 'transparent'
 			: comparisonColourScale(difference);
 
-	$inspect(resultsTable);
-
-	const getPlayerMostUsedCharacterKart = (
-		userId: Id<'users'>,
-		stats: FunctionReturnType<typeof api.results.get>
-	) => {
-		if (!stats) return;
-		const userResults = stats
-			.map((race) => race.results.find((result) => result.userId === userId))
-			.filter(
-				(result) =>
-					result && Object.hasOwn(result, 'kartId') && Object.hasOwn(result, 'characterId')
-			);
-
-		if (userResults.length === 0) return;
-
-		const kartUsageCount = userResults.reduce((acc, curr) => {
-			acc[curr.kartId] = (acc[curr.kartId] || 0) + 1;
-			return acc;
-		}, {});
-
-		const mostUsedKartId = Object.entries(kartUsageCount).reduce((a, b) => {
-			return b[1] > a[1] ? b : a;
-		})[0];
-
-		const userMostUsedKart = userResults.find((result) => result.kartId === mostUsedKartId);
-
-		const characterUsageCount = userResults.reduce((acc, curr) => {
-			acc[curr.characterId] = (acc[curr.characterId] || 0) + 1;
-			return acc;
-		}, {});
-
-		const mostUsedCharacterId = Object.entries(characterUsageCount).reduce((a, b) => {
-			return b[1] > a[1] ? b : a;
-		})[0];
-
-		const userMostUsedCharacter = userResults.find(
-			(result) => result.characterId === mostUsedCharacterId
-		);
-
-		return { kart: userMostUsedKart?.kartId, character: userMostUsedCharacter?.characterId };
+	const mostUsed = <T extends string>(ids: (T | undefined)[]): T | undefined => {
+		const counts = new Map<T, number>();
+		for (const id of ids) if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+		return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
 	};
-
 	const playerMostUsedCharacterKart = $derived(
-		!resultsTable.isLoading &&
-			resultsTable.data &&
-			grandPrixDetails.participants.map((userId) => {
-				return {
-					userId,
-					...getPlayerMostUsedCharacterKart(userId, resultsTable.data)
-				};
-			})
+		grandPrixDetails.participants.map((userId) => {
+			const results = (resultsTable.data ?? [])
+				.flatMap((race) => race.results)
+				.filter((result) => result.userId === userId && result.kartId && result.characterId);
+			return {
+				userId,
+				kart: mostUsed(results.map((result) => result.kartId)),
+				character: mostUsed(results.map((result) => result.characterId))
+			};
+		})
 	);
 
 	$effect(() => {
-		if (!selectedRaceId) return;
-		goto(`/grandprix/${grandPrixDetails?._id}?track=${selectedRaceId}`, { noScroll: true });
+		if (!selectedRaceId || page.url.searchParams.get('track') === selectedRaceId) return;
+		const url = new URL(page.url);
+		url.searchParams.set('track', selectedRaceId);
+		void goto(url, { noScroll: true, replaceState: true, keepFocus: true });
 	});
 
 	$effect(() => {
@@ -337,7 +290,7 @@
 	});
 
 	const submitRaceResults = async () => {
-		if (isSavingResult) return;
+		if (isSavingResult || liveGp.error || liveGp.isLoading || !liveGp.data) return;
 		const position = Number(finishPosition);
 		if (!isValidFinishPosition(position)) {
 			return toast.error('Invalid finish position', {
@@ -376,12 +329,9 @@
 				finishPosition = '';
 			}
 			toast.success('Result saved');
-		} catch (error) {
+		} catch {
 			toast.error('Could not save result', {
-				description:
-					error instanceof ConvexError && typeof error.data === 'string'
-						? error.data
-						: 'Try again. Your selections have been kept.'
+				description: 'Try again. Your selections have been kept.'
 			});
 		} finally {
 			isSavingResult = false;
@@ -397,7 +347,7 @@
 		'roadHandling',
 		'terrainHandling',
 		'waterHandling'
-	];
+	] as const;
 
 	const statLabels = {
 		roadSpeed: 'Road Speed',
@@ -410,39 +360,23 @@
 		waterHandling: 'Water Handling'
 	};
 
-	const chartData = $derived(
-		playerMostUsedCharacterKart &&
-			playerMostUsedCharacterKart.filter(
-				(result) => Object.hasOwn(result, 'kart') && Object.hasOwn(result, 'character')
-			).length === grandPrixDetails.participants.length &&
-			statNames.map((statKey) => {
-				console.log(
-					playerMostUsedCharacterKart.filter(
-						(result) => Object.hasOwn(result, 'kart') && Object.hasOwn(result, 'character')
-					)
-				);
-				const dataPoint = { stat: statLabels[statKey] };
-
-				// Add each user's stat value using their name as the key
-				grandPrixDetails.participants.forEach((userId) => {
-					const playerCharacterKart = playerMostUsedCharacterKart.find(
-						(player) => player.userId === userId
-					);
-					const characterName = getCharacterName(characterList, playerCharacterKart?.character);
-					const kartName = getKartName(kartList, playerCharacterKart?.kart);
-
-					const characterStats = characterDataset.getByName(characterName);
-					const kartStats = kartDataset.getByName(kartName);
-
-					const playerName = getPlayerName(playerList, userId);
-
-					console.log(characterName, kartName);
-					dataPoint[playerName] = characterStats[statKey] + kartStats[statKey];
-				});
-
-				return dataPoint;
-			})
-	);
+	const chartData = $derived.by(() => {
+		const combinations = playerMostUsedCharacterKart.map((player) => ({
+			name: getPlayerName(playerList, player.userId),
+			character: player.character
+				? characterDataset.getByName(getCharacterName(characterList, player.character))
+				: undefined,
+			kart: player.kart ? kartDataset.getByName(getKartName(kartList, player.kart)) : undefined
+		}));
+		if (!combinations.length || combinations.some((combo) => !combo.character || !combo.kart))
+			return undefined;
+		return statNames.map((key) => {
+			const point: Record<string, string | number> = { stat: statLabels[key] };
+			for (const combo of combinations)
+				point[combo.name] = combo.character![key] + combo.kart![key];
+			return point;
+		});
+	});
 
 	const chartConfig = $derived(
 		grandPrixDetails &&
@@ -452,7 +386,7 @@
 					color: '#f5cd30' // or however you generate random colors
 				};
 				return acc;
-			}, {}) satisfies Chart.ChartConfig)
+			}, {} as Chart.ChartConfig) satisfies Chart.ChartConfig)
 	);
 	let context = $state<ChartState>();
 
@@ -465,13 +399,6 @@
 					color: chartColours[i]
 				};
 			})
-	);
-
-	let initialLoading = $derived(
-		raceList.isLoading || standings.isLoading || resultsTable.isLoading || !selectedRaceStats
-	);
-	let errors = $derived(
-		[raceList, standings, resultsTable].map(({ error }) => error).filter((error) => error)
 	);
 </script>
 
@@ -491,33 +418,51 @@
 	</span>
 {/snippet}
 
-<div transition:fade|global={{ duration: 500, easing: cubicIn }}>
-	{#if initialLoading}
-		<div class="flex h-dvh items-center justify-center">
-			<img src="/lapita-logo.png" class="w-48 animate-bounce" alt="lapita-logo" />
+<div>
+	{#if !liveGp.isLoading && !liveGp.error && liveGp.data === null}
+		<div class="mx-auto max-w-4xl space-y-4 px-4 py-8">
+			<p role="status">This Grand Prix is no longer available.</p>
+			<Button variant="outline" href="/grandprix">All Grand Prix</Button>
 		</div>
-	{:else if errors.length}
-		<div>Something went wrong. Looks like this:</div>
-		<div class="flex flex-col gap-8">
-			{#each errors as error}
-				<div class="flex flex-col gap-2">
-					<div class="font-medium">{error!.name}</div>
-					<div class="text-sm">{error!.message}</div>
-					<div class="text-sm">{error!.cause}</div>
-					<div class="text-sm">{error!.stack}</div>
+	{:else if raceList.error && !raceList.data}
+		<div class="mx-auto max-w-4xl px-4 py-8">
+			<QueryNotice error label="Grand Prix races" retry={raceList.retry} />
+		</div>
+	{:else if !raceList.data}
+		<div class="mx-auto max-w-4xl px-4 py-8"><QueryNotice loading label="Grand Prix races" /></div>
+	{:else if !selectedRace}
+		<div class="mx-auto max-w-4xl space-y-4 px-4 py-8">
+			<ManageGP grandPrix={grandPrixDetails} players={playerList ?? []} />
+			{#if resultsTable && resultsTable.data && buildRecap(grandPrixDetails.participants, resultsTable.data, grandPrixDetails.completedAt).complete}
+				<div class="flex justify-end py-2">
+					<Button
+						variant="secondary"
+						href={resolve('/grandprix/[id]/recap', { id: grandPrixDetails._id })}
+						>View Grand Prix recap</Button
+					>
 				</div>
-			{/each}
+			{/if}
+			<QueryNotice label="races" empty="No races are scheduled for this Grand Prix." />
+			<Button variant="outline" href="/grandprix">All Grand Prix</Button>
 		</div>
 	{:else}
-		<div
-			class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8"
-			transition:fade|global={{ duration: 500, easing: cubicIn }}
-		>
+		<div class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8">
 			<ManageGP grandPrix={grandPrixDetails} players={playerList ?? []} />
+			{#if resultsTable && resultsTable.data && buildRecap(grandPrixDetails.participants, resultsTable.data, grandPrixDetails.completedAt).complete}
+				<div class="flex justify-end py-2">
+					<Button
+						variant="secondary"
+						href={resolve('/grandprix/[id]/recap', { id: grandPrixDetails._id })}
+						>View Grand Prix recap</Button
+					>
+				</div>
+			{/if}
+			{#if liveGp.error}<QueryNotice error label="Grand Prix updates" retry={liveGp.retry} />{/if}
+			{#if raceList.error}<QueryNotice error label="race updates" retry={raceList.retry} />{/if}
 			<Card.Root>
 				<Card.Header>
-					<div class="flex justify-between">
-						<div class="flex items-center">
+					<div class="flex flex-wrap items-start justify-between gap-3">
+						<div class="flex w-full min-w-0 items-center sm:w-auto">
 							<Dialog.Root>
 								<Dialog.Trigger>
 									<img
@@ -531,7 +476,7 @@
 									<Dialog.Description>
 										<img
 											src={`/tracks/locations/${trackList.find((track) => track._id === selectedRace?.trackStartId)?.img}.jpg`}
-											alt={selectedRace?.startTrackName}
+											alt={getTrackName(trackList, selectedRace.trackStartId)}
 											class="min-w-full"
 										/>
 									</Dialog.Description>
@@ -555,86 +500,99 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="flex flex-col gap-8">
-						<div class="flex flex-col gap-2">
-							<div class="flex flex-col gap-1.5">
-								<div class="flex items-center gap-2 leading-none font-semibold">
-									Average Placement
+						<QueryNotice
+							error={stats.error}
+							loading={stats.isLoading}
+							label="track forecasts"
+							retry={stats.retry}
+							empty={!selectedRaceStats?.stats.length
+								? 'No forecast history for this track yet.'
+								: ''}
+						/>
+						{#if selectedRaceStats}
+							<div class="flex flex-col gap-2">
+								<div class="flex flex-col gap-1.5">
+									<div class="flex items-center gap-2 leading-none font-semibold">
+										Average finish
+									</div>
+									<div class="text-muted-foreground text-sm">
+										Recorded finishes from three-lap races on <b
+											>{getTrackName(trackList, selectedRace?.trackEndId)}</b
+										>
+									</div>
 								</div>
-								<div class="text-muted-foreground text-sm">
-									Average placement to 2 d.p on <b
-										>{getTrackName(trackList, selectedRace?.trackEndId)}</b
-									>
-								</div>
-							</div>
-							<Table.Root>
-								<Table.Header>
-									<Table.Row>
-										<Table.Head class="w-20 md:w-32">Racer</Table.Head>
-										<Table.Head class="w-32 text-center">Average</Table.Head>
-										<Table.Head class="w-32 text-center">Last 5</Table.Head>
-										<Table.Head class="w-24 text-center">Trend</Table.Head>
-										<Table.Head class="w-48 text-center">Consistency</Table.Head>
-									</Table.Row>
-								</Table.Header>
-								<Table.Body>
-									{#each selectedRaceStats.stats as { userId, bestResult, avg, lastFiveResults }, i (i)}
-										{@const name = getPlayerName(playerList, userId)}
-										{@const lastFiveAverage =
-											lastFiveResults.reduce((a, b) => a + b, 0) / lastFiveResults.length}
+								<Table.Root>
+									<Table.Header>
 										<Table.Row>
-											<Table.Cell class="font-medium">{name}</Table.Cell>
-											<Table.Cell class="flex items-center justify-center text-center text-black">
-												<div
-													class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
-													style="background-color: {getPositionColour(avg)}"
-												>
-													{(avg ?? 0).toFixed(2) || '-'}
-												</div></Table.Cell
-											>
-											<Table.Cell class="w-44 py-0 text-center text-black">
-												<div class="flex h-full items-center justify-center gap-2">
-													{#each lastFiveResults as result, resultIndex (resultIndex)}
-														<PositionBadge position={result} class="size-8" />
-													{/each}
-												</div>
-											</Table.Cell>
-
-											<Table.Cell class="w-44 py-0 text-center text-black">
-												{@const trend = avg - lastFiveAverage}
-												{#if trend > 0.5}
-													<div class="flex items-center justify-center gap-2 text-green-600">
-														<MoveUpRightIcon />+{trend.toFixed(1)}
-													</div>
-												{:else if trend < -0.5}
-													<div class="flex items-center justify-center gap-2 text-red-600">
-														<MoveDownRightIcon />{trend.toFixed(1)}
-													</div>
-												{:else if trend >= 0}
-													<div class="flex items-center justify-center gap-2 text-yellow-500">
-														<MoveRightIcon />+{trend.toFixed(1)}
-													</div>
-												{:else if trend <= 0}
-													<div class="flex items-center justify-center gap-2 text-yellow-400">
-														<MoveRightIcon />{trend.toFixed(1)}
-													</div>
-												{/if}
-											</Table.Cell>
-											<Table.Cell class="text-center text-white">
-												<Progress
-													value={calculateConsistency(lastFiveResults) * 100}
-													class="bg-neutral-800"
-													indicatorColour={getConsistencyColorGradient(
-														calculateConsistency(lastFiveResults)
-													)}
-												/>
-											</Table.Cell>
+											<Table.Head class="w-20 md:w-32">Racer</Table.Head>
+											<Table.Head class="w-32 text-center">Avg. finish</Table.Head>
+											<Table.Head class="w-32 text-center">Last 5 avg.</Table.Head>
+											<Table.Head class="w-24 text-center">Trend</Table.Head>
+											<Table.Head class="w-48 text-center">Consistency</Table.Head>
 										</Table.Row>
-									{/each}
-								</Table.Body>
-							</Table.Root>
-						</div>
-						<Separator orientation="horizontal" />
-						<RaceWinChanceChart data={selectedRaceStats?.chances} />
+									</Table.Header>
+									<Table.Body>
+										{#each selectedRaceStats.stats as { userId, bestResult, avg, lastFiveResults }, i (i)}
+											{@const name = getPlayerName(playerList, userId)}
+											{@const lastFiveAverage =
+												lastFiveResults.reduce((a, b) => a + b, 0) / lastFiveResults.length}
+											<Table.Row>
+												<Table.Cell class="font-medium">{name}</Table.Cell>
+												<Table.Cell class="flex items-center justify-center text-center text-black">
+													<div
+														class="flex w-20 items-center justify-center rounded-sm text-center text-lg text-black"
+														style="background-color: {getPositionColour(avg)}"
+													>
+														{(avg ?? 0).toFixed(2) || '-'}
+													</div></Table.Cell
+												>
+												<Table.Cell class="w-44 py-0 text-center text-black">
+													<div class="flex h-full items-center justify-center gap-2">
+														{#each lastFiveResults as result, resultIndex (resultIndex)}
+															<PositionBadge position={result} class="size-8" />
+														{/each}
+													</div>
+												</Table.Cell>
+
+												<Table.Cell class="w-44 py-0 text-center text-black">
+													{@const trend = avg - lastFiveAverage}
+													{#if trend > 0.5}
+														<div class="flex items-center justify-center gap-2 text-green-600">
+															<MoveUpRightIcon />+{trend.toFixed(1)}
+														</div>
+													{:else if trend < -0.5}
+														<div class="flex items-center justify-center gap-2 text-red-600">
+															<MoveDownRightIcon />{trend.toFixed(1)}
+														</div>
+													{:else if trend >= 0}
+														<div class="flex items-center justify-center gap-2 text-yellow-500">
+															<MoveRightIcon />+{trend.toFixed(1)}
+														</div>
+													{:else if trend <= 0}
+														<div class="flex items-center justify-center gap-2 text-yellow-400">
+															<MoveRightIcon />{trend.toFixed(1)}
+														</div>
+													{/if}
+												</Table.Cell>
+												<Table.Cell class="text-center text-white">
+													<Progress
+														value={calculateConsistency(lastFiveResults) * 100}
+														class="bg-neutral-800"
+														indicatorColour={getConsistencyColorGradient(
+															calculateConsistency(lastFiveResults)
+														)}
+													/>
+												</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
+							</div>
+							<Separator orientation="horizontal" />
+							{#if selectedRaceStats.chances?.length}<RaceWinChanceChart
+									data={selectedRaceStats.chances}
+								/>{/if}
+						{/if}
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -643,11 +601,19 @@
 					<Card.Title>Update Results</Card.Title>
 				</Card.Header>
 				<Card.Content>
-					<div class="flex flex-wrap items-end gap-2 md:flex-nowrap">
-						<div>
-							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedUserId}>
+					<div
+						class="flex flex-wrap items-end gap-2 md:grid md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_5rem_auto]"
+					>
+						<div class="min-w-0">
+							<Select.Root
+								disabled={isSavingResult || liveGp.error || liveGp.isLoading}
+								type="single"
+								bind:value={selectedUserId}
+							>
 								<Select.Label>Racer</Select.Label>
-								<Select.Trigger class="w-[100px]">{selectedUser?.name}</Select.Trigger>
+								<Select.Trigger class="w-[100px] overflow-hidden md:w-full"
+									><span class="truncate">{selectedUser?.name}</span></Select.Trigger
+								>
 								<Select.Content class="md:max-w-16">
 									{#each grandPrixDetails.participants as participant, i (i)}
 										<Select.Item value={participant.toString()}
@@ -657,35 +623,38 @@
 								</Select.Content>
 							</Select.Root>
 						</div>
-						<div>
-							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedRaceId}>
+						<div class="min-w-0">
+							<Select.Root
+								disabled={isSavingResult || liveGp.error || liveGp.isLoading}
+								type="single"
+								bind:value={selectedRaceId}
+							>
 								<Select.Label>Race</Select.Label>
-								<Select.Trigger class="w-[240px] truncate overflow-hidden text-ellipsis">
-									{selectedRace.order + 1}.
-									{#if selectedRace?.trackStartId === selectedRace?.trackEndId}
-										{getTrackName(convexStore.allTracks, selectedRace.trackStartId)}
-									{:else}
-										{getTrackName(convexStore.allTracks, selectedRace.trackStartId)}
-										<MoveRightIcon />
-										{getTrackName(convexStore.allTracks, selectedRace.trackEndId)}
-									{/if}
-								</Select.Trigger>
+								<Select.Trigger class="w-[240px] overflow-hidden md:w-full">
+									<span class="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap"
+										>{selectedRace.order + 1}.
+										{#if selectedRace?.trackStartId === selectedRace?.trackEndId}
+											{getTrackName(trackList, selectedRace.trackStartId)}
+										{:else}
+											{getTrackName(trackList, selectedRace.trackStartId)}
+											<MoveRightIcon />
+											{getTrackName(trackList, selectedRace.trackEndId)}
+										{/if}
+									</span></Select.Trigger
+								>
 								<Select.Content>
 									{#each raceList.data as { _id, trackStartId, trackEndId, order }, i (i)}
 										{#if trackStartId === trackEndId}
 											<Select.Item value={_id}
-												>{order + 1}. {getTrackName(
-													convexStore.allTracks,
-													trackStartId
-												)}</Select.Item
+												>{order + 1}. {getTrackName(trackList, trackStartId)}</Select.Item
 											>
 										{:else}
 											<Select.Item
 												value={_id}
 												class="group flex items-center gap-2 text-white hover:text-black"
-												>{order + 1}. {getTrackName(convexStore.allTracks, trackStartId)}
+												>{order + 1}. {getTrackName(trackList, trackStartId)}
 												<MoveRightIcon class="text-white group-data-[highlighted]:text-black" />
-												{getTrackName(convexStore.allTracks, trackEndId)}</Select.Item
+												{getTrackName(trackList, trackEndId)}</Select.Item
 											>
 										{/if}
 									{/each}
@@ -693,11 +662,18 @@
 							</Select.Root>
 						</div>
 
-						<div>
-							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedCharacterId}>
+						<div class="min-w-0">
+							<Select.Root
+								disabled={isSavingResult || liveGp.error || liveGp.isLoading}
+								type="single"
+								bind:value={selectedCharacterId}
+							>
 								<Select.Label>Character</Select.Label>
-								<Select.Trigger class="w-[160px]">
-									{selectedCharacterId && getCharacterName(characterList, selectedCharacterId)}
+								<Select.Trigger class="w-[160px] overflow-hidden md:w-full">
+									<span class="truncate"
+										>{selectedCharacterId &&
+											getCharacterName(characterList, selectedCharacterId)}</span
+									>
 								</Select.Trigger>
 								<Select.Content>
 									{#each characterList as { name, _id } (_id)}
@@ -706,11 +682,17 @@
 								</Select.Content>
 							</Select.Root>
 						</div>
-						<div>
-							<Select.Root disabled={isSavingResult} type="single" bind:value={selectedKartId}>
+						<div class="min-w-0">
+							<Select.Root
+								disabled={isSavingResult || liveGp.error || liveGp.isLoading}
+								type="single"
+								bind:value={selectedKartId}
+							>
 								<Select.Label>Kart</Select.Label>
-								<Select.Trigger class="w-[160px]">
-									{selectedKart && getKartName(kartList, selectedKartId)}
+								<Select.Trigger class="w-[160px] overflow-hidden md:w-full">
+									<span class="truncate"
+										>{selectedKart && getKartName(kartList, selectedKartId)}</span
+									>
 								</Select.Trigger>
 								<Select.Content>
 									{#each kartList as { name, _id } (_id)}
@@ -719,7 +701,7 @@
 								</Select.Content>
 							</Select.Root>
 						</div>
-						<div class="flex flex-col">
+						<div class="flex w-20 shrink-0 flex-col">
 							<Label for="finish-position" class="text-muted-foreground px-2 py-1.5 text-xs"
 								>Pos</Label
 							>
@@ -728,14 +710,14 @@
 								inputmode="numeric"
 								placeholder="1–24"
 								bind:value={finishPosition}
-								disabled={isSavingResult}
+								disabled={isSavingResult || liveGp.error || liveGp.isLoading}
 							/>
 						</div>
-						<div class="flex w-32 flex-col">
+						<div class="flex shrink-0 flex-col">
 							<Button
 								variant="secondary"
 								class="cursor-pointer"
-								disabled={isSavingResult}
+								disabled={isSavingResult || liveGp.error || liveGp.isLoading}
 								onclick={submitRaceResults}>{isSavingResult ? 'Saving…' : 'Submit'}</Button
 							>
 						</div>
@@ -750,14 +732,23 @@
 					</Card.Header>
 					<Card.Content>
 						<div class="flex w-full flex-col gap-2">
-							{#if standings.data && playerMostUsedCharacterKart}
+							<QueryNotice
+								error={standings.error}
+								loading={standings.isLoading}
+								label="standings"
+								retry={standings.retry}
+								empty={standings.data?.length === 0 ? 'No standings yet.' : ''}
+							/>
+							{#if standings.data}
 								{#each standings.data as { userId, points, position }, i (userId)}
-									{@const characterKart = playerMostUsedCharacterKart.find(
+									{@const characterKart = playerMostUsedCharacterKart?.find(
 										(player) => player.userId === userId
 									)}
 									{@const characterImage =
-										characterKart && getCharacterImage(characterList, characterKart.character)}
-									{@const kartImage = characterKart && getKartImage(kartList, characterKart.kart)}
+										characterKart?.character &&
+										getCharacterImage(characterList, characterKart.character!)}
+									{@const kartImage =
+										characterKart?.kart && getKartImage(kartList, characterKart.kart!)}
 									<div class="flex grow flex-col gap-2">
 										<div class="flex items-center gap-2 text-sm font-medium">
 											<PositionBadge {position} />
@@ -772,8 +763,16 @@
 											{/if}
 										</div>
 										<div class="flex justify-between">
-											<img src={`/characters/${characterImage}.png`} alt="" class="h-10" />
-											<img src={`/karts/${kartImage}.png`} alt="" class="h-10" />
+											{#if characterImage}<img
+													src={`/characters/${characterImage}.png`}
+													alt=""
+													class="h-10"
+												/>{/if}
+											{#if kartImage}<img
+													src={`/karts/${kartImage}.png`}
+													alt=""
+													class="h-10"
+												/>{/if}
 										</div>
 
 										<Separator />
@@ -819,8 +818,23 @@
 							{/if}
 						</div>
 					</Card.Header>
+					<div class="px-6">
+						<QueryNotice
+							error={resultsTable.error}
+							loading={resultsTable.isLoading}
+							label="recorded results"
+							retry={resultsTable.retry}
+							empty={resultsTable.data?.length === 0 ? 'No results yet.' : ''}
+						/>
+					</div>
 					{#if tab === 'expected'}
 						<Card.Content>
+							<QueryNotice
+								error={stats.error}
+								loading={stats.isLoading}
+								label="expected points"
+								retry={stats.retry}
+							/>
 							<Table.Root>
 								<Table.Header>
 									<Table.Row>
@@ -884,7 +898,7 @@
 							</Table.Root>
 						</Card.Content>
 					{:else if tab === 'cumulative' || tab === 'results'}
-						<ScrollArea class="w-96 md:w-full" orientation="horizontal">
+						<ScrollArea class="w-full min-w-0" orientation="horizontal">
 							<Card.Content>
 								<Table.Root class="table-fixed">
 									<Table.Header>
@@ -906,7 +920,7 @@
 													<Table.Cell
 														class="cursor-pointer hover:text-white/60"
 														onclick={() => (selectedRaceId = _id)}
-														>{getTrackName(convexStore.allTracks, trackStartId)}</Table.Cell
+														>{getTrackName(trackList, trackStartId)}</Table.Cell
 													>
 												{:else}
 													<Table.Cell
@@ -915,8 +929,8 @@
 													>
 														<div><RouteIcon /></div>
 														<div class="flex-col items-center justify-center text-xs">
-															<div>{getTrackName(convexStore.allTracks, trackStartId)}</div>
-															<div>{getTrackName(convexStore.allTracks, trackEndId)}</div>
+															<div>{getTrackName(trackList, trackStartId)}</div>
+															<div>{getTrackName(trackList, trackEndId)}</div>
 														</div>
 													</Table.Cell>
 												{/if}
@@ -966,11 +980,29 @@
 				<Card.Header>
 					<Card.Title>Grand Prix stats</Card.Title>
 					<Card.Description>
-						{#if gpOutlook}{gpOutlook.completedRaces} of {gpOutlook.totalRaces} races complete · {grandPrixDetails
-								.participants.length} racers{:else}Loading stats…{/if}
+						{#if gpOutlook}{gpOutlook.completedRaces} of {gpOutlook.totalRaces} races fully recorded ·
+							{grandPrixDetails.participants.length} racers{:else}{grandPrixDetails.participants
+								.length} racers{/if}
 					</Card.Description>
 				</Card.Header>
 				<Card.Content class="space-y-3">
+					<StatisticsHelp scope="gp" />
+					<p class="text-muted-foreground text-xs">
+						xPoints and win chances give each racer’s latest 10 finishes on each track full weight.
+						Each older finish carries 10% less weight than the one before it.
+					</p>
+					<QueryNotice
+						error={stats.error}
+						loading={stats.isLoading}
+						label="Grand Prix forecasts"
+						retry={stats.retry}
+					/>
+					<QueryNotice
+						error={startingStats.error}
+						loading={startingStats.isLoading}
+						label="starting forecasts"
+						retry={startingStats.retry}
+					/>
 					{#if gpOutlook}
 						<Table.Root aria-label="Grand Prix stats">
 							<Table.Header>
@@ -1038,11 +1070,6 @@
 								{/each}
 							</Table.Body>
 						</Table.Root>
-						{#if startingStats && startingStats.error}
-							<p class="text-destructive text-sm">Unable to load starting stats.</p>
-						{:else if !startingOutlook}
-							<p class="text-muted-foreground text-sm">Loading starting stats…</p>
-						{/if}
 					{/if}
 				</Card.Content>
 			</Card.Root>
@@ -1076,8 +1103,16 @@
 										initialY: context?.height,
 										initialHeight: 0,
 										motion: {
-											y: { type: 'tween', duration: 500, easing: cubicInOut },
-											height: { type: 'tween', duration: 500, easing: cubicInOut }
+											y: {
+												type: 'tween',
+												duration: prefersReducedMotion.current ? 0 : 500,
+												easing: cubicInOut
+											},
+											height: {
+												type: 'tween',
+												duration: prefersReducedMotion.current ? 0 : 500,
+												easing: cubicInOut
+											}
 										}
 									},
 									highlight: { area: { fill: 'none' } }

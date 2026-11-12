@@ -1,3 +1,5 @@
+import { browser } from '$app/environment';
+import { QueryResource } from '$lib/query-resource';
 import { convexUrl } from '$lib/convex-url';
 import { ConvexClient } from 'convex/browser';
 import { api } from '../../convex/_generated/api';
@@ -25,22 +27,48 @@ class ConvexStore {
 
 	client = new ConvexClient(convexUrl);
 
+	isLoading = $state(false);
+	error = $state(false);
+
+	private resource = new QueryResource<[CharacterData, KartsData, UserData, TracksData]>(
+		(success, failure) => {
+			let active = true;
+			Promise.all([
+				this.client.query(api.characters.all, {}),
+				this.client.query(api.karts.all, {}),
+				this.client.query(api.users.getAllUsers, {}),
+				this.client.query(api.tracks.all, {})
+			]).then(
+				(data) => {
+					if (active) success(data);
+				},
+				() => {
+					if (active) failure();
+				}
+			);
+			return () => {
+				active = false;
+			};
+		},
+		({ data, error, isLoading }) => {
+			this.error = error;
+			this.isLoading = isLoading;
+			if (data) {
+				const [characters, karts, users, tracks] = data;
+				this.allCharacters = characters;
+				this.allKarts = karts;
+				this.allUsers = users;
+				this.allTracks = tracks;
+			}
+		}
+	);
+
 	constructor() {
-		this.loadData(); // Load data immediately when store is created
+		if (browser) this.loadData();
 	}
 
-	async loadData() {
-		const [characterList, kartList, playerList, trackList] = await Promise.all([
-			this.client.query(api.characters.all, {}),
-			this.client.query(api.karts.all, {}),
-			this.client.query(api.users.getAllUsers, {}),
-			this.client.query(api.tracks.all, {})
-		]);
-
-		this.allCharacters = characterList;
-		this.allKarts = kartList;
-		this.allUsers = playerList;
-		this.allTracks = trackList;
+	loadData() {
+		if (!this.isLoading) this.resource.start();
 	}
 }
 

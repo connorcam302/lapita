@@ -1,23 +1,19 @@
 <script>
 	import { page } from '$app/state';
 	import Button from '$lib/components/ui/button/button.svelte';
-	import { browser } from '$app/environment';
-	import HouseIcon from '$lib/components/icon/HouseIcon.svelte';
-
-	function goBack() {
-		if (browser) {
-			console.log('goingback');
-			window.history.back();
-		}
-	}
 </script>
 
-<div class="flex h-full w-full flex-col items-center justify-center gap-8">
-	<img src="/lakitu-nuh-uh.gif" />
-	<h1 class="text-4xl font-medium">Something went wrong.</h1>
-	<div>{page.status} {page.error.message}</div>
-	<div>
-		<Button variant="outline" class="h-12 w-32 text-2xl" onclick={() => goBack()}>Go Back</Button>
-		<a href="/"><Button variant="outline" class="h-12 w-32 text-2xl">Home</Button></a>
+<main class="mx-auto flex max-w-xl flex-col items-start gap-4 px-4 py-12">
+	<h1 class="font-title text-2xl">
+		{page.status === 404 ? 'Page not found' : 'Could not load this page'}
+	</h1>
+	<p class="text-muted-foreground" role="alert">
+		{page.status === 404
+			? 'This page may have moved or the Grand Prix is unavailable.'
+			: 'Check your connection and try again.'}
+	</p>
+	<div class="flex flex-wrap gap-2">
+		<Button variant="outline" onclick={() => window.location.reload()}>Try again</Button>
+		<Button variant="outline" href="/">Home</Button>
 	</div>
-</div>
+</main>

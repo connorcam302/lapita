@@ -6,7 +6,7 @@
 	import type { Snippet } from 'svelte';
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	function defaultFormatter(value: any, _payload: TooltipPayload[]) {
+	function defaultFormatter(value: any) {
 		return `${value}`;
 	}
 
@@ -23,6 +23,7 @@
 		formatter,
 		nameKey,
 		color,
+		itemSorter,
 		...restProps
 	}: WithoutChildren<WithElementRef<HTMLAttributes<HTMLDivElement>>> & {
 		hideLabel?: boolean;
@@ -32,6 +33,7 @@
 		labelKey?: string;
 		hideIndicator?: boolean;
 		labelClassName?: string;
+		itemSorter?: (a: TooltipPayload, b: TooltipPayload) => number;
 		labelFormatter?:
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			((value: any, payload: TooltipPayload[]) => string | number | Snippet) | null;
@@ -50,15 +52,16 @@
 
 	const chart = useChart();
 	const chartState = getChartContext<Record<string, unknown>>();
-	const payload: TooltipPayload[] = $derived(
-		chartState.tooltip.series
+	const payload: TooltipPayload[] = $derived.by(() => {
+		const items = chartState.tooltip.series
 			.filter((series) => series.visible)
 			.map((series) => ({
 				...series,
 				name: series.label,
 				payload: chartState.tooltip.data
-			}))
-	);
+			}));
+		return itemSorter ? items.sort(itemSorter) : items;
+	});
 
 	const formattedLabel = $derived.by(() => {
 		if (hideLabel || !payload?.length) return null;

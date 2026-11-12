@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { hasTrackSample } from '$lib/track-ranking';
+	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../../convex/_generated/api';
 	import { convexStore } from '$lib/stores/states.svelte';
 	import { summarizeTrack, validPosition } from '$lib/track-stats';
 	import { hasAllResults } from '$lib/grand-prix';
 	import { placementToPoints } from '$lib/utils';
 	import RaceHistoryRow from './RaceHistoryRow.svelte';
+	import TrackSetup from './TrackSetup.svelte';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
@@ -46,7 +49,7 @@
 		<div role="alert" class="space-y-3 rounded-md border p-6">
 			<h1 class="font-title text-xl">Track stats unavailable</h1>
 			<p>Couldn’t load this track. Check your connection and try again.</p>
-			<Button variant="outline" onclick={() => window.location.reload()}>Try again</Button>
+			<Button variant="outline" onclick={detail.retry}>Try again</Button>
 		</div>
 	{:else if detail.isLoading}
 		<p role="status" class="text-muted-foreground py-12">Loading track stats and race history…</p>
@@ -66,7 +69,7 @@
 					<h1 class="font-title text-2xl text-balance sm:text-3xl">{track.name}</h1>
 				</div>
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-5 sm:grid-cols-4">
-					{#each [['Races scheduled', detail.data.races.length], ['Races complete', detail.data.races.filter( (race) => hasAllResults(race.participants, race.results) ).length], ['Results recorded', stats.count], ['Avg recorded racers / race', format(stats.averageParticipants)], ['Average position', format(stats.average)], ['Best position', stats.best ?? '—'], ['Wins (1st place)', stats.wins], ['Podiums (top 3)', stats.podiums]] as [label, value] (label)}
+					{#each [['Scheduled races', detail.data.races.length], ['Fully recorded races', detail.data.races.filter( (race) => hasAllResults(race.participants, race.results) ).length], ['Recorded finishes', stats.count], ['Avg. finishes / race', format(stats.averageParticipants)], ['Avg. finish', format(stats.average)], ['Best finish', stats.best ?? '—'], ['Wins (1st place)', stats.wins], ['Podiums (top 3)', stats.podiums]] as [label, value] (label)}
 						<div>
 							<dt class="text-muted-foreground text-sm">{label}</dt>
 							<dd class="mt-1 text-xl tabular-nums">{value}</dd>
@@ -75,13 +78,16 @@
 				</dl>
 			</div>
 		</header>
+		<StatisticsHelp scope="track" />
+		<TrackSetup trackName={track.name} />
 
 		<Card.Root>
 			<Card.Header
 				><h2 class="font-title text-lg">Player performance</h2>
 				<Card.Description
-					>Ranked by average position, lowest first. Recent form uses each player’s last five
-					recorded results. Consistency is the standard deviation; lower means more consistent.</Card.Description
+					>Players with at least five valid finishes rank first by average position; smaller samples
+					remain visible below, unranked. Recent form uses each player’s last five recorded results.
+					Consistency is the standard deviation; lower means more consistent.</Card.Description
 				></Card.Header
 			>
 			<Card.Content>
@@ -91,20 +97,23 @@
 					<Table.Root>
 						<Table.Header
 							><Table.Row
-								>{#each ['Player', 'Races', 'Average', 'Recent form', 'Best', 'Worst', 'Wins', 'Win rate', 'Podiums', 'Points', 'Consistency'] as label (label)}<Table.Head
+								>{#each ['Player', 'Recorded finishes', 'Avg. finish', 'Last 5 avg.', 'Best', 'Worst', 'Wins', 'Win rate', 'Podiums', 'Points', 'Consistency'] as label (label)}<Table.Head
 										>{label}</Table.Head
 									>{/each}</Table.Row
 							></Table.Header
 						>
 						<Table.Body
-							>{#each stats.players as player (player.userId)}
+							>{#each [...stats.players].sort((a, b) => Number(hasTrackSample(b.count)) - Number(hasTrackSample(a.count)) || a.average! - b.average!) as player (player.userId)}
 								<Table.Row>
 									<Table.Cell
 										><a
 											class="font-medium underline underline-offset-4"
 											href={resolve('/players/[userId]', { userId: player.userId })}
 											>{playerName(player.userId)}</a
-										></Table.Cell
+										>{#if !hasTrackSample(player.count)}<span
+												class="text-muted-foreground block text-xs"
+												>Below five results · unranked</span
+											>{/if}</Table.Cell
 									>
 									<Table.Cell>{player.count}</Table.Cell><Table.Cell
 										>{format(player.average)}</Table.Cell
@@ -177,7 +186,7 @@
 					<Table.Root
 						><Table.Header
 							><Table.Row
-								>{#each ['Character', 'Kart', 'Races', 'Average', 'Best', 'Wins', 'Podiums'] as label (label)}<Table.Head
+								>{#each ['Character', 'Kart', 'Recorded finishes', 'Avg. finish', 'Best', 'Wins', 'Podiums'] as label (label)}<Table.Head
 										>{label}</Table.Head
 									>{/each}</Table.Row
 							></Table.Header

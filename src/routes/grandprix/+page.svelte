@@ -3,7 +3,7 @@
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../convex/_generated/api';
 	import { convexStore } from '$lib/stores/states.svelte';
 	import { filterArchive, type ArchiveFilters } from '$lib/gp-archive';
@@ -152,12 +152,8 @@
 	{#if archive.error}
 		<section class="py-10" role="alert">
 			<h2 class="text-xl font-semibold">Could not load Grand Prix</h2>
-			<p class="text-muted-foreground mt-2">
-				Check your connection and reload the page to try again.
-			</p>
-			<Button variant="outline" class="mt-4" onclick={() => window.location.reload()}
-				>Reload page</Button
-			>
+			<p class="text-muted-foreground mt-2">Check your connection and try again.</p>
+			<Button variant="outline" class="mt-4" onclick={archive.retry}>Try again</Button>
 		</section>
 	{:else if !archive.data}
 		<p class="text-muted-foreground py-10" role="status">Loading all Grand Prix…</p>

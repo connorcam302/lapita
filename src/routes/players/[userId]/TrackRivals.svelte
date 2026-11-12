@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../../convex/_generated/api';
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import { comparePlayerTracks, formatGap } from './track-rivals';
@@ -10,11 +10,7 @@
 	import SortableHeader from '../../track-stats/SortableHeader.svelte';
 	import { average, type TrackSummary } from './player-data';
 
-	let {
-		userId,
-		playerName,
-		data
-	}: { userId: Id<'users'>; playerName: string; data: TrackSummary[] } = $props();
+	let { userId, data }: { userId: Id<'users'>; data: TrackSummary[] } = $props();
 	const query = useQuery(api.races.getStats, {});
 	const comparisons = $derived(
 		comparePlayerTracks(query.data ?? [], userId).map((track) => {
@@ -29,7 +25,7 @@
 	let direction = $state<'asc' | 'desc'>('asc');
 	const columns: { key: SortKey; label: string; numeric?: boolean }[] = [
 		{ key: 'trackName', label: 'Track' },
-		{ key: 'races', label: 'Races', numeric: true },
+		{ key: 'races', label: 'Recorded finishes', numeric: true },
 		{ key: 'average', label: 'Avg. finish', numeric: true },
 		{ key: 'recent', label: 'Last 10 avg.', numeric: true },
 		{ key: 'lastFive', label: 'Last 5', numeric: true },
@@ -93,15 +89,10 @@
 
 <section aria-labelledby="rivals-heading">
 	<h2 id="rivals-heading" class="font-title text-lg">Track rivals</h2>
-	<p class="text-muted-foreground mt-2 max-w-2xl text-sm">
-		Compare {playerName}’s all-time average finish with the current leaders.
-	</p>
 	{#if query.error}
 		<div role="alert" class="py-8">
 			<p>Track comparisons could not be loaded.</p>
-			<Button variant="outline" class="mt-3" onclick={() => window.location.reload()}
-				>Reload comparisons</Button
-			>
+			<Button variant="outline" class="mt-3" onclick={query.retry}>Reload comparisons</Button>
 		</div>
 	{:else if !query.data}
 		<p role="status" class="text-muted-foreground py-10">Loading track comparisons…</p>
@@ -122,7 +113,9 @@
 					><option value="raced">All raced tracks</option><option value="leading">Leading</option
 					><option value="close">Within 0.50 of lead</option><option value="chasing"
 						>Chasing the lead</option
-					><option value="solo">Only racer</option></select
+					><option value="solo">Only eligible racer</option><option value="low-sample"
+						>Below five results</option
+					></select
 				></label
 			>
 		</div>
@@ -163,6 +156,10 @@
 									/>
 									<div>
 										{track.trackName}
+										{#if track.status === 'low-sample'}<span
+												class="text-muted-foreground block text-xs"
+												>Below five results · unranked</span
+											>{/if}
 									</div></a
 								></Table.Cell
 							>
@@ -207,11 +204,5 @@
 				</Table.Body>
 			</Table.Root>
 		</div>
-		<p class="text-muted-foreground mt-4 max-w-3xl text-xs">
-			Ranks use unrounded all-time averages. Green negative gaps show a lead over the best other
-			racer; red positive gaps show the distance behind the leader. Shared leads show 0.00; solo
-			racers have no gap. Last 5 shows newest finishes first and sorts by their average. All tracks
-			are grouped by finish track; sample sizes can differ between racers.
-		</p>
 	{/if}
 </section>

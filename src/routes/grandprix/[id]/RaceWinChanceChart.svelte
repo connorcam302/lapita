@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { scaleBand } from 'd3-scale';
 	import { BarChart, type ChartState } from 'layerchart';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -9,28 +10,33 @@
 	import { getPositionColour, getTrackName, getPlayerName } from '$lib/utils';
 	import { convexStore } from '$lib/stores/states.svelte';
 
-	let { data } = $props();
+	import type { FunctionReturnType } from 'convex/server';
+	import type { api } from '../../../convex/_generated/api';
+	let { data }: { data: FunctionReturnType<typeof api.results.stats>[number]['chances'] } =
+		$props();
 
-	let playerList = $derived(convexStore.allUsers);
-	let trackList = $derived(convexStore.allTracks);
+	let playerList = $derived(convexStore.allUsers ?? []);
+	let trackList = $derived(convexStore.allTracks ?? []);
 
 	let context = $state<ChartState>();
 
 	let unformattedData = $derived(data);
 
-	let trackId = $derived(data[0].user.trackId);
+	let trackId = $derived(data[0]?.user.trackId);
 
 	let chartData = $derived(
-		unformattedData.map((chance) => {
-			return {
-				user: getPlayerName(playerList, chance.user.userId),
-				chance: Math.floor(chance.chance * 10) / 10,
-				average: chance.user.average,
-				formFactor: chance.formFactor,
-				form: chance.user.recentForm,
-				colour: getPositionColour(chance.user.average)
-			};
-		})
+		unformattedData.map(
+			(chance: FunctionReturnType<typeof api.results.stats>[number]['chances'][number]) => {
+				return {
+					user: getPlayerName(playerList, chance.user.userId),
+					chance: Math.floor(chance.chance * 10) / 10,
+					average: chance.user.average,
+					formFactor: chance.formFactor,
+					form: chance.user.recentForm,
+					colour: getPositionColour(chance.user.average)
+				};
+			}
+		)
 	);
 
 	const chartConfig = {
@@ -42,7 +48,8 @@
 	<Card.Header class="px-0">
 		<Card.Title>Win Chance</Card.Title>
 		<Card.Description
-			>Percent chance to win <b>{getTrackName(trackList, trackId)}</b></Card.Description
+			>Percent chance to win <b>{getTrackName(trackList, trackId!)}</b>. Latest 10 track finishes
+			count fully; each older finish carries 10% less weight.</Card.Description
 		>
 	</Card.Header>
 	<Card.Content class="px-6">
@@ -56,7 +63,7 @@
 				orientation="horizontal"
 				padding={{ left: 0, right: 0, top: 0, bottom: 0 }}
 				axis="y"
-				cRange={chartData.map((c) => c.colour)}
+				cRange={chartData.map((c: { colour: string }) => c.colour)}
 				c="colour"
 				rule={false}
 				props={{
@@ -68,8 +75,16 @@
 						initialY: (context?.height ?? 0) + 180,
 						initialHeight: 0,
 						motion: {
-							x: { type: 'tween', duration: 500, easing: cubicInOut },
-							width: { type: 'tween', duration: 500, easing: cubicInOut }
+							x: {
+								type: 'tween',
+								duration: prefersReducedMotion.current ? 0 : 500,
+								easing: cubicInOut
+							},
+							width: {
+								type: 'tween',
+								duration: prefersReducedMotion.current ? 0 : 500,
+								easing: cubicInOut
+							}
 						}
 					},
 					highlight: { area: { fill: 'none' } },
@@ -87,12 +102,7 @@
 					<Chart.Tooltip hideLabel class="w-[180px]">
 						{#snippet formatter({ name, index, value, item })}
 							<Table.Root class="table-fixed"
-								><Table.Caption
-									>{item.payload?.user}
-									<div class="text-[6pt]">
-										Form Factor will always be 1 and Form will always be null
-									</div></Table.Caption
-								>
+								><Table.Caption>{item.payload?.user}</Table.Caption>
 								<Table.Body>
 									<Table.Row class="">
 										<Table.Cell class="text-xs">Win Chance</Table.Cell>
@@ -101,7 +111,7 @@
 										>
 									</Table.Row>
 									<Table.Row class="">
-										<Table.Cell class="text-xs">Average Pos</Table.Cell>
+										<Table.Cell class="text-xs">Weighted avg.</Table.Cell>
 										<Table.Cell class="text-right text-xs font-medium"
 											>{Number(item.payload?.average ?? 0).toFixed(2)}</Table.Cell
 										>

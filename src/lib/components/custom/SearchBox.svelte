@@ -2,8 +2,9 @@
 	import { afterNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { convexStore } from '$lib/stores/states.svelte';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../../convex/_generated/api';
+	import { Button } from '$lib/components/ui/button';
 	import { Search, X, ArrowUpRight } from 'lucide-svelte';
 	import { tick } from 'svelte';
 
@@ -23,6 +24,18 @@
 			header: 'Explore',
 			options: [
 				{
+					label: 'Head-to-head rivalry',
+					href: resolve('/rivalry'),
+					keywords: 'players compare rivals shared races head to head',
+					detail: 'Compare two racers in shared races'
+				},
+				{
+					label: 'All players',
+					href: resolve('/players'),
+					keywords: 'players racers directory profiles activity wins average finish',
+					detail: 'Browse player profiles & stats'
+				},
+				{
 					label: 'Grand Prix',
 					href: resolve('/'),
 					keywords: 'home standings races results',
@@ -39,6 +52,13 @@
 					href: resolve('/track-stats'),
 					keywords: 'courses circuits averages records',
 					detail: 'Track performance'
+				},
+				{
+					label: 'Track ownership',
+					href: `${resolve('/track-stats')}?view=ownership`,
+					keywords:
+						'tracks courses circuits owners leaders shared leads averages minimum results grid',
+					detail: 'Track stats · ownership grid'
 				},
 				{
 					label: 'Stats',
@@ -262,17 +282,28 @@
 				{:else}<p class="text-muted-foreground px-3 py-6 text-sm" role="status">
 						No matches for “{searchValue.trim()}”. Try a player, track, character, or kart.
 					</p>{/each}
-				{#if !convexStore.isLoaded}<p role="status" class="text-muted-foreground px-3 py-2 text-xs">
-						Loading players, tracks, and combos…
-					</p>{/if}
-				{#if recentGps.isLoading}<p role="status" class="text-muted-foreground px-3 py-2 text-xs">
+				{#if convexStore.error}
+					<div role="alert" class="px-3 py-2 text-xs">
+						<p>Players, tracks and combinations unavailable.</p>
+						<Button size="sm" variant="ghost" onclick={() => convexStore.loadData()}
+							>Try again</Button
+						>
+					</div>
+				{:else if !convexStore.isLoaded}
+					<p role="status" class="text-muted-foreground px-3 py-2 text-xs">
+						Loading players, tracks and combinations…
+					</p>
+				{/if}
+				{#if recentGps.error}
+					<div role="alert" class="px-3 py-2 text-xs">
+						<p>Recent Grand Prix unavailable. Other search results are still available.</p>
+						<Button size="sm" variant="ghost" onclick={recentGps.retry}>Try again</Button>
+					</div>
+				{:else if recentGps.isLoading}
+					<p role="status" class="text-muted-foreground px-3 py-2 text-xs">
 						Loading recent Grand Prix…
-					</p>{:else if recentGps.error}<p
-						role="status"
-						class="text-muted-foreground px-3 py-2 text-xs"
-					>
-						Recent Grand Prix unavailable. Browse race history from Home.
-					</p>{/if}
+					</p>
+				{/if}
 			</div>
 			<p class="text-muted-foreground border-t px-3 py-2 text-xs">
 				↑ ↓ to browse · Enter to open · Esc to close

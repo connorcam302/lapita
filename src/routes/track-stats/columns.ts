@@ -39,7 +39,7 @@ export const columns: ColumnDef<Columns>[] = [
 		accessorKey: 'count',
 		header: ({ column }) =>
 			renderComponent(SortableHeader, {
-				label: 'Races',
+				label: 'Scheduled races',
 				sorted: column.getIsSorted(),
 				onclick: column.getToggleSortingHandler()
 			}),
@@ -49,7 +49,7 @@ export const columns: ColumnDef<Columns>[] = [
 		accessorKey: 'average',
 		header: ({ column }) =>
 			renderComponent(SortableHeader, {
-				label: 'Avg. racers',
+				label: 'Avg. finishes / race',
 				sorted: column.getIsSorted(),
 				onclick: column.getToggleSortingHandler()
 			}),

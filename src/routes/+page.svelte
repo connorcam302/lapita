@@ -10,7 +10,7 @@
 	import StartGPButton from '$lib/components/custom/StartGPButton.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { api } from '../convex/_generated/api';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { convexStore } from '$lib/stores/states.svelte';
 	import { isComplete } from './home-data';
 	import dayjs from 'dayjs';
@@ -19,7 +19,7 @@
 
 	let pageCount = $state(1);
 	const playerList = $derived(convexStore.allUsers ?? []);
-	const historyQuery = $derived(useQuery(api.gps.getAll, { pageSize: 12, pageCount }));
+	const historyQuery = useQuery(api.gps.getAll, () => ({ pageSize: 12, pageCount }));
 	// Keep the current page visible while the expanded live query loads.
 	let history = $state<NonNullable<typeof historyQuery.data> | null>(null);
 	$effect(() => {
@@ -42,6 +42,7 @@
 	});
 	const gps = $derived(history?.page ?? []);
 	const latest = $derived(gps[0]);
+	const latestCompleted = useQuery(api.gps.latestCompleted, {});
 	const months = $derived.by(() => {
 		const groups = new SvelteMap<string, typeof gps>();
 		for (const gp of gps.slice(1)) {
@@ -70,20 +71,42 @@
 		<StartGPButton {playerList} />
 	</header>
 
-	{#if !history && historyQuery.isLoading}
-		<p class="text-muted-foreground py-12" role="status">Loading Grand Prix…</p>
-	{:else if !history && historyQuery.error}
+	{#if !history && historyQuery.error}
 		<section class="py-6" role="alert">
 			<h2 class="text-xl font-semibold">Could not load race history</h2>
-			<p class="text-muted-foreground mt-2">Check your connection and reload the page.</p>
-			<Button class="mt-4 shadow-none" variant="outline" onclick={() => window.location.reload()}
-				>Reload page</Button
+			<p class="text-muted-foreground mt-2">Check your connection and try again.</p>
+			<Button class="mt-4 shadow-none" variant="outline" onclick={historyQuery.retry}
+				>Try again</Button
 			>
 		</section>
+	{:else if !history && historyQuery.isLoading}
+		<p class="text-muted-foreground py-12" role="status">Loading Grand Prix…</p>
 	{:else if latest}
 		<LatestGrandPrix gp={latest} tracks={convexStore.allTracks ?? []} players={playerList} />
 	{:else}
 		<p class="text-muted-foreground py-8">No Grand Prix</p>
+	{/if}
+
+	{#if latestCompleted.data && latestCompleted.data.id !== latest?.grandPrixId}
+		<div
+			class="bg-card mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border p-5"
+		>
+			<p class="font-body text-xl">Latest completed · Grand Prix {latestCompleted.data.order}</p>
+			<div class="flex flex-wrap gap-2">
+				<Button
+					variant="secondary"
+					href={resolve('/grandprix/[id]/recap', { id: latestCompleted.data.id })}
+					>View recap</Button
+				>
+				<Button variant="outline" href={resolve('/grandprix/[id]', { id: latestCompleted.data.id })}
+					>Detailed results</Button
+				>
+			</div>
+		</div>
+	{:else if latestCompleted.error}
+		<p class="text-muted-foreground mt-4 text-sm" role="alert">
+			Could not load the latest completed Grand Prix. Reload to try again.
+		</p>
 	{/if}
 
 	{#if gps.length}
@@ -164,7 +187,7 @@
 						variant="outline"
 						class="shadow-none"
 						disabled={historyQuery.isLoading}
-						onclick={() => pageCount++}
+						onclick={() => (historyQuery.error ? historyQuery.retry() : pageCount++)}
 						>{historyQuery.isLoading
 							? 'Loading history…'
 							: historyQuery.error

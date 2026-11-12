@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { hasTrackSample } from '$lib/track-ranking';
+	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { resolve } from '$app/paths';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
 	import { convexStore } from '$lib/stores/states.svelte';
@@ -10,7 +12,7 @@
 		getTrackImage,
 		getTrackName
 	} from '$lib/utils';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../../convex/_generated/api';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -18,6 +20,7 @@
 	import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import TrackBars from './TrackBars.svelte';
+	import PersonalProgress from './PersonalProgress.svelte';
 	import TrackRivals from './TrackRivals.svelte';
 	import { summarizePlayer } from './player-data';
 
@@ -73,11 +76,14 @@
 			? (recordsQuery.data.gpWins.find((entry) => entry.userId === user?._id)?.value ?? 0)
 			: '—'
 	);
+	const eligibleTracks = $derived(
+		profile.tracks.filter((track) => hasTrackSample(track.positions.length))
+	);
 	const highlights = $derived(
-		profile.tracks.length
+		eligibleTracks.length
 			? [
-					{ label: 'Best average', track: profile.tracks[0] },
-					{ label: 'Toughest track', track: profile.tracks[profile.tracks.length - 1] }
+					{ label: 'Best average', track: eligibleTracks[0] },
+					{ label: 'Toughest track', track: eligibleTracks[eligibleTracks.length - 1] }
 				]
 			: []
 	);
@@ -122,9 +128,14 @@
 	{:else if resultsQuery.error || gpQuery.error}
 		<section role="alert" class="py-10">
 			<h1 class="font-title text-xl">Could not load {user.name}’s profile</h1>
-			<p class="text-muted-foreground mt-3">Check your connection and reload to try again.</p>
-			<Button variant="outline" class="mt-5" onclick={() => window.location.reload()}
-				>Reload profile</Button
+			<p class="text-muted-foreground mt-3">Check your connection and try again.</p>
+			<Button
+				variant="outline"
+				class="mt-5"
+				onclick={() => {
+					resultsQuery.retry();
+					gpQuery.retry();
+				}}>Try again</Button
 			>
 		</section>
 	{:else if resultsQuery.isLoading || gpQuery.isLoading}
@@ -135,6 +146,12 @@
 			<div class="grid grid-cols-[minmax(0,1fr)_6rem] sm:grid-cols-[1fr_18rem]">
 				<div class="p-5 sm:p-8">
 					<h1 class="font-title text-3xl sm:text-4xl">{user.name}</h1>
+					<Button
+						variant="outline"
+						size="sm"
+						class="mt-4"
+						href={resolve('/rivalry') + `?a=${user._id}&scope=all`}>Compare rivalry</Button
+					>
 					{#if favourite}
 						<div class="mt-7">
 							<p class="text-muted-foreground text-sm">Most-used combination</p>
@@ -150,7 +167,7 @@
 								)}<ArrowUpRight class="size-4 shrink-0" />
 							</a>
 							<p class="text-muted-foreground mt-1 text-sm">
-								{favourite.raceCount} races · {Math.round(
+								{favourite.raceCount} finishes · {Math.round(
 									(favourite.raceCount / profile.finished.length) * 100
 								)}% of recorded finishes
 							</p>
@@ -180,7 +197,7 @@
 				{/if}
 			</div>
 			<dl class="bg-muted/40 grid grid-cols-2 border-t sm:grid-cols-4">
-				{#each [{ label: 'Races completed', value: profile.finished.length }, { label: 'Average finish', value: profile.average?.toFixed(2) ?? '—' }, { label: 'Race wins', value: wins }, { label: 'GP wins', value: gpWins }] as stat (stat.label)}
+				{#each [{ label: 'Recorded finishes', value: profile.finished.length }, { label: 'Average finish', value: profile.average?.toFixed(2) ?? '—' }, { label: 'Race wins', value: wins }, { label: 'GP wins', value: gpWins }] as stat (stat.label)}
 					<div class="p-5 sm:px-8">
 						<dt class="text-muted-foreground text-sm">{stat.label}</dt>
 						<dd class="font-body mt-1 text-3xl font-semibold tabular-nums">{stat.value}</dd>
@@ -188,6 +205,7 @@
 				{/each}
 			</dl>
 		</header>
+		<StatisticsHelp scope="player" />
 
 		{#if !profile.finished.length}
 			<section class="py-12">
@@ -213,6 +231,7 @@
 				{/each}
 			</Tabs.List>
 			<Tabs.Content value="overview" class="min-w-0 space-y-10">
+				<PersonalProgress userId={user._id} />
 				<section aria-labelledby="personal-records-heading">
 					<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 						<h2 id="personal-records-heading" class="font-title text-lg">Personal records</h2>
@@ -222,12 +241,9 @@
 					</div>
 					{#if recordsQuery.error}
 						<div role="alert" class="text-muted-foreground py-4 text-sm">
-							<p>Personal records could not be loaded. Reload the page to try again.</p>
-							<Button
-								variant="outline"
-								size="sm"
-								class="mt-3"
-								onclick={() => window.location.reload()}>Reload records</Button
+							<p>Personal records could not be loaded. Check your connection and try again.</p>
+							<Button variant="outline" size="sm" class="mt-3" onclick={recordsQuery.retry}
+								>Try again</Button
 							>
 						</div>
 					{:else if !recordsQuery.data}
@@ -262,53 +278,55 @@
 								</div>
 							{/each}
 						</dl>
-						<p class="text-muted-foreground mt-4 max-w-2xl text-xs">
-							Only races with a valid finish for every participant count. GP records require a fully
-							completed Grand Prix. Unfinished races break winning streaks; tied records share a
-							rank.
-						</p>
 					{/if}
 				</section>
 
-				<div class="grid gap-9 lg:grid-cols-2">
-					<section aria-labelledby="track-highlights">
-						<div class="mb-4 flex items-center justify-between gap-3">
+				<div class="grid gap-x-9 gap-y-4 lg:grid-cols-2">
+					<section
+						class="grid min-w-0 gap-4 lg:row-span-2 lg:grid-rows-subgrid"
+						aria-labelledby="track-highlights"
+					>
+						<div class="flex items-center justify-between gap-3">
 							<h2 id="track-highlights" class="font-title text-lg">On the track</h2>
 							<Button variant="ghost" size="sm" onclick={() => (activeTab = 'tracks')}
 								>All tracks<ArrowUpRight /></Button
 							>
 						</div>
-						{#each highlights as { label, track } (label)}
-							<a
-								href={resolve(`/track-stats?track=${track.trackEndId}`)}
-								class="bg-card hover:bg-muted focus-visible:ring-ring mb-3 flex items-center gap-4 rounded-md border p-4 focus-visible:ring-2"
-							>
-								<img
-									src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
-									alt=""
-									class="size-16 object-contain"
-								/>
-								<div class="min-w-0 flex-1">
-									<p class="text-muted-foreground text-xs">{label}</p>
-									<h3 class="mt-1 font-medium">{getTrackName(tracks, track.trackEndId)}</h3>
-									<p class="text-muted-foreground mt-1 text-xs">{track.positions.length} races</p>
-								</div>
-								<div class="text-right">
-									<p class="font-body text-2xl font-semibold tabular-nums">
-										{track.average.toFixed(2)}
-									</p>
-									<p class="text-muted-foreground text-xs">avg. finish</p>
-								</div>
-							</a>
-						{:else}<p class="text-muted-foreground py-6 text-sm">
-								No track results recorded.
-							</p>{/each}
-						<p class="text-muted-foreground mt-4 text-xs">
-							Based on all recorded finishes. Lower averages are better.
-						</p>
+						<div class="grid auto-rows-fr gap-3">
+							{#each highlights as { label, track } (label)}
+								<a
+									href={resolve(`/track-stats?track=${track.trackEndId}`)}
+									class="bg-card hover:bg-muted focus-visible:ring-ring flex items-center gap-4 rounded-md border p-4 focus-visible:ring-2"
+								>
+									<img
+										src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
+										alt=""
+										class="size-16 object-contain"
+									/>
+									<div class="min-w-0 flex-1">
+										<p class="text-muted-foreground text-xs">{label}</p>
+										<h3 class="mt-1 font-medium">{getTrackName(tracks, track.trackEndId)}</h3>
+										<p class="text-muted-foreground mt-1 text-xs">
+											{track.positions.length} finishes
+										</p>
+									</div>
+									<div class="text-right">
+										<p class="font-body text-2xl font-semibold tabular-nums">
+											{track.average.toFixed(2)}
+										</p>
+										<p class="text-muted-foreground text-xs">avg. finish</p>
+									</div>
+								</a>
+							{:else}<p class="text-muted-foreground py-6 text-sm">
+									No track has five valid finishes yet.
+								</p>{/each}
+						</div>
 					</section>
-					<section class="min-w-0" aria-labelledby="recent-gps">
-						<div class="mb-4 flex items-center justify-between gap-3">
+					<section
+						class="mt-5 grid min-w-0 gap-4 lg:row-span-2 lg:mt-0 lg:grid-rows-subgrid"
+						aria-labelledby="recent-gps"
+					>
+						<div class="flex items-center justify-between gap-3">
 							<h2 id="recent-gps" class="font-title text-lg">Recent Grand Prix</h2>
 							<Button
 								variant="ghost"
@@ -319,8 +337,7 @@
 								}}>All results<ArrowUpRight /></Button
 							>
 						</div>
-						{@render gpTable(4)}
-						<p class="text-muted-foreground mt-4 text-xs">Standings include GPs in progress.</p>
+						{@render gpTable(4, true)}
 					</section>
 				</div>
 				<section aria-labelledby="race-heading">
@@ -340,16 +357,13 @@
 			</Tabs.Content>
 			<Tabs.Content value="tracks" class="min-w-0 space-y-10">
 				<TrackBars data={profile.tracks} />
-				<TrackRivals userId={user._id} playerName={user.name} data={profile.tracks} />
+				<TrackRivals userId={user._id} data={profile.tracks} />
 			</Tabs.Content>
 			<Tabs.Content value="combinations" class="min-w-0">
 				<section aria-labelledby="combo-heading">
 					<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 						<div>
 							<h2 id="combo-heading" class="font-title text-lg">Character & kart combinations</h2>
-							<p class="text-muted-foreground mt-2 text-sm">
-								Compare the setups behind {profile.finished.length} recorded finishes.
-							</p>
 						</div>
 						<label class="flex items-center gap-2 text-sm"
 							>Sort by<select
@@ -366,7 +380,7 @@
 							<Table.Header
 								><Table.Row
 									><Table.Head class="pl-4">Combination</Table.Head><Table.Head class="text-right"
-										>Races</Table.Head
+										>Recorded finishes</Table.Head
 									><Table.Head class="text-right">Avg. finish</Table.Head><Table.Head
 										class="text-right">GP wins</Table.Head
 									><Table.Head class="text-right">Avg. GP pts</Table.Head><Table.Head
@@ -410,8 +424,14 @@
 										><Table.Cell class="text-right tabular-nums">{combo.gpWins}</Table.Cell
 										><Table.Cell class="text-right tabular-nums"
 											>{combo.averageGpPoints?.toFixed(0) ?? '—'}</Table.Cell
-										><Table.Cell>{getTrackName(tracks, combo.bestTrack)}</Table.Cell><Table.Cell
-											>{getTrackName(tracks, combo.worstTrack)}</Table.Cell
+										><Table.Cell
+											>{combo.bestTrack
+												? getTrackName(tracks, combo.bestTrack)
+												: 'Needs 5 results'}</Table.Cell
+										><Table.Cell
+											>{combo.worstTrack
+												? getTrackName(tracks, combo.worstTrack)
+												: 'Needs 5 results'}</Table.Cell
 										>
 									</Table.Row>
 								{:else}<Table.Row
@@ -422,11 +442,6 @@
 							</Table.Body>
 						</Table.Root>
 					</div>
-					<p class="text-muted-foreground mt-4 max-w-2xl text-xs">
-						GP stats are credited to the most-used combination in each GP and include current
-						standings. Combination track rankings use the starting track. Select a combination to
-						open the calculator.
-					</p>
 				</section>
 			</Tabs.Content>
 			<Tabs.Content value="history" class="min-w-0">
@@ -434,9 +449,6 @@
 					<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 						<div>
 							<h2 id="history-heading" class="font-title text-lg">Race history</h2>
-							<p class="text-muted-foreground mt-2 text-sm">
-								Newest Grand Prix first. Select a result to open it.
-							</p>
 						</div>
 						<label class="flex items-center gap-2 text-sm"
 							>Show<select
@@ -448,9 +460,7 @@
 						>
 					</div>
 					{#if historyType === 'gps'}{@render gpTable(historyLimit)}
-						<p class="text-muted-foreground mt-4 text-xs">
-							Standings include Grand Prix in progress.
-						</p>{:else}{@render raceTable(historyLimit)}{/if}
+					{:else}{@render raceTable(historyLimit)}{/if}
 					<div class="mt-5 flex flex-wrap items-center justify-between gap-4">
 						<p class="text-muted-foreground text-sm">
 							Showing {Math.min(historyLimit, historyCount)} of {historyCount}
@@ -468,9 +478,9 @@
 	{/if}
 </main>
 
-{#snippet gpTable(limit: number)}
-	<div class="bg-card overflow-x-auto rounded-md border">
-		<Table.Root>
+{#snippet gpTable(limit: number, fillHeight = false)}
+	<div class="bg-card overflow-x-auto rounded-md border" class:grid={fillHeight}>
+		<Table.Root class={fillHeight ? 'h-full' : undefined}>
 			<Table.Header
 				><Table.Row
 					><Table.Head class="pl-4">Grand Prix</Table.Head><Table.Head class="text-right"

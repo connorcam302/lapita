@@ -1,6 +1,7 @@
 <script lang="ts">
+	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { resolve } from '$app/paths';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { LineChart, BarChart } from 'layerchart';
 	import { scaleBand } from 'd3-scale';
 	import { curveLinear } from 'd3-shape';
@@ -95,13 +96,12 @@
 			<Button variant="outline" size="sm" href={resolve('/records')}>All-time records</Button>
 		</div>
 	</header>
+	<StatisticsHelp scope="stats" />
 	{#if stats.error}
 		<section class="py-12" role="alert">
 			<h2 class="text-xl font-semibold">Could not load stats</h2>
-			<p class="text-muted-foreground mt-2">Check your connection and reload to try again.</p>
-			<Button variant="outline" class="mt-4" onclick={() => window.location.reload()}
-				>Reload page</Button
-			>
+			<p class="text-muted-foreground mt-2">Check your connection and try again.</p>
+			<Button variant="outline" class="mt-4" onclick={stats.retry}>Try again</Button>
 		</section>
 	{:else if !stats.data}
 		<p class="text-muted-foreground py-12" role="status">Loading race history and stats…</p>
@@ -118,7 +118,7 @@
 		<dl
 			class="bg-card mt-6 grid grid-cols-2 gap-x-6 gap-y-5 rounded-md border p-4 sm:grid-cols-4 sm:p-6"
 		>
-			{#each [{ label: 'Completed Grand Prix', value: stats.data.completedGps }, { label: 'Completed races', value: stats.data.completedRaces }, { label: 'Racers', value: players.length }, { label: 'Tracks raced', value: stats.data.tracks.length }] as stat (stat.label)}
+			{#each [{ label: 'Completed Grand Prix', value: stats.data.completedGps }, { label: 'Fully recorded races', value: stats.data.completedRaces }, { label: 'Racers', value: players.length }, { label: 'Tracks raced', value: stats.data.tracks.length }] as stat (stat.label)}
 				<div>
 					<dt class="text-muted-foreground text-sm">{stat.label}</dt>
 					<dd class="mt-1 text-3xl font-semibold tabular-nums">{stat.value.toLocaleString()}</dd>
@@ -233,6 +233,7 @@
 							</g>
 						{/snippet}
 						{#snippet tooltip()}<Chart.Tooltip
+								itemSorter={(a, b) => Number(b.value ?? 0) - Number(a.value ?? 0)}
 								labelFormatter={(_, payload) =>
 									`Grand Prix ${payload[0]?.payload?.order ?? ''} · ${payload[0]?.payload?.era ?? 'No era'}`}
 							/>{/snippet}
@@ -282,13 +283,13 @@
 				<div>
 					<h2 id="players-heading" class="font-title text-xl">Player comparison</h2>
 					<p class="text-muted-foreground mt-2 text-sm">
-						Wins, consistency, and points across all completed races.
+						Wins, consistency, and points across all fully recorded races.
 					</p>
 				</div>
 				<label class="flex items-center gap-2 text-sm"
 					>Sort by<select bind:value={ranking} class="bg-background rounded-md border px-3 py-2"
 						><option value="wins">Race wins</option><option value="gpWins">GP wins</option><option
-							value="races">Races</option
+							value="races">Fully recorded races</option
 						><option value="winRate">Win rate</option><option value="podiums">Podiums</option
 						><option value="average">Average finish</option><option value="points">Points</option
 						></select
@@ -300,7 +301,7 @@
 					><Table.Header
 						><Table.Row
 							><Table.Head>Player</Table.Head
-							>{#each ['Races', 'GP wins', 'Race wins', 'Win %', 'Podiums', 'Podium %', 'Avg. finish', 'Points'] as heading (heading)}<Table.Head
+							>{#each ['Fully recorded races', 'GP wins', 'Race wins', 'Win %', 'Podiums', 'Podium %', 'Avg. finish', 'Points'] as heading (heading)}<Table.Head
 									class="text-right whitespace-nowrap">{heading}</Table.Head
 								>{/each}</Table.Row
 						></Table.Header
@@ -324,7 +325,8 @@
 			<section class="bg-card min-w-0 rounded-md border p-4 sm:p-6" aria-labelledby="rates-heading">
 				<h2 id="rates-heading" class="font-title text-lg">Race win rate</h2>
 				<p class="text-muted-foreground mt-2 text-sm">
-					First-place finishes as a percentage of races entered. Race counts in brackets.
+					First-place finishes as a percentage of fully recorded races entered. Race counts in
+					brackets.
 				</p>
 				<StatsBars data={winRates} label="Race win rate (%)" percent />
 			</section>
@@ -334,7 +336,7 @@
 			>
 				<h2 id="points-heading" class="font-title text-lg">Average points per race</h2>
 				<p class="text-muted-foreground mt-2 text-sm">
-					Points earned divided by completed races entered. Higher is better; race counts in
+					Points earned divided by fully recorded races entered. Higher is better; race counts in
 					brackets.
 				</p>
 				<StatsBars data={averagePoints} label="Average points per race" />
@@ -345,7 +347,7 @@
 			>
 				<h2 id="averages-heading" class="font-title text-lg">Average finish</h2>
 				<p class="text-muted-foreground mt-2 text-sm">
-					Average finishing position across completed races. Lower is better; race counts in
+					Average finishing position across fully recorded races. Lower is better; race counts in
 					brackets.
 				</p>
 				<StatsBars data={averageFinishes} label="Average finish" />
@@ -356,7 +358,7 @@
 			>
 				<h2 id="combos-heading" class="font-title text-lg">Favourite combinations</h2>
 				<p class="text-muted-foreground mt-2 text-sm">
-					Top eight character / kart pairs by recorded uses in completed races.
+					Top eight character / kart pairs by recorded uses in fully recorded races.
 				</p>
 				<StatsBars
 					data={stats.data.combos
@@ -411,10 +413,9 @@
 			</details>
 		</section>
 		<p class="text-muted-foreground max-w-prose border-t pt-5 text-sm">
-			Race stats require a valid finish from 1–24 for every GP participant. Podiums are top-three
-			finishes; points use Lapita’s scoring system. Average finish and rates have no minimum race
-			count. Deleted Grand Prix are excluded. History reflects current results, so edits can change
-			earlier totals.
+			Podiums are top-three finishes; points use Lapita’s scoring system. Average finish and rates
+			have no minimum race count. Deleted Grand Prix are excluded. History reflects current results,
+			so edits can change earlier totals.
 		</p>
 	{/if}
 </main>

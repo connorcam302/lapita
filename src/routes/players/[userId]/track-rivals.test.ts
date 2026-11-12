@@ -17,7 +17,8 @@ function track(averages: [string, number][]): Track {
 		userAverages: averages.map(([id, average]) => ({
 			userId: id as Id<'users'>,
 			userName: id,
-			average
+			average,
+			count: 10
 		}))
 	};
 }
@@ -109,4 +110,23 @@ test('unraced tracks and solo racers do not claim a competitive lead', () => {
 	assert.equal(solo.signedGap, null);
 	assert.equal(solo.racerCount, 1);
 	assert.deepEqual(comparePlayerTracks([], player), []);
+});
+
+test('four results never earn a rank or lead; five qualify inclusively', () => {
+	const input = track([
+		['player', 1],
+		['rival', 3],
+		['third', 4]
+	]);
+	input.userAverages[0].count = 4;
+	const [low] = comparePlayerTracks([input], player);
+	assert.equal(low.status, 'low-sample');
+	assert.equal(low.rank, null);
+	assert.equal(low.signedGap, null);
+	assert.equal(low.leaders[0].userId, 'rival');
+	assert.equal(low.player?.count, 4);
+	input.userAverages[0].count = 5;
+	const [eligible] = comparePlayerTracks([input], player);
+	assert.equal(eligible.status, 'leading');
+	assert.equal(eligible.rank, 1);
 });

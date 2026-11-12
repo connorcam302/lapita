@@ -1,0 +1,252 @@
+{
+	"sourceName": "The Mario Kart World Statpedia",
+	"source": "https://docs.google.com/spreadsheets/d/1EQd2XYGlB3EFFNE-35hFLaBzJo4cipU9DZT4MRSjBlc/edit?gid=910105117#gid=910105117",
+	"sourceUpdated": "12/09/2026",
+	"retrieved": "2026-11-12",
+	"format": "VS Races main tracks; speedrun-based estimated surface coverage, percentage of time",
+	"aliases": {
+		"Wario Shipyard": "Wario's Galleon"
+	},
+	"tracks": [
+		{
+			"name": "Mario Bros. Circuit",
+			"road": 47,
+			"rough": 15,
+			"water": 0,
+			"gliding": 6,
+			"neutral": 32
+		},
+		{
+			"name": "Crown City",
+			"road": 75,
+			"rough": 0,
+			"water": 0,
+			"gliding": 2,
+			"neutral": 23
+		},
+		{
+			"name": "Whistlestop Summit",
+			"road": 35,
+			"rough": 0,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 65
+		},
+		{
+			"name": "DK Spaceport",
+			"road": 77,
+			"rough": 0,
+			"water": 0,
+			"gliding": 3,
+			"neutral": 20
+		},
+		{
+			"name": "Desert Hills",
+			"road": 71,
+			"rough": 13,
+			"water": 2,
+			"gliding": 1,
+			"neutral": 13
+		},
+		{
+			"name": "Shy Guy Bazaar",
+			"road": 58,
+			"rough": 0,
+			"water": 0,
+			"gliding": 9,
+			"neutral": 33
+		},
+		{
+			"name": "Wario Stadium",
+			"road": 36,
+			"rough": 24,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 40
+		},
+		{
+			"name": "Airship Fortress",
+			"road": 62,
+			"rough": 0,
+			"water": 0,
+			"gliding": 2,
+			"neutral": 36
+		},
+		{
+			"name": "DK Pass",
+			"road": 45,
+			"rough": 26,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 29
+		},
+		{
+			"name": "Starview Peak",
+			"road": 10,
+			"rough": 42,
+			"water": 15,
+			"gliding": 27,
+			"neutral": 6
+		},
+		{
+			"name": "Sky-High Sundae",
+			"road": 72,
+			"rough": 0,
+			"water": 0,
+			"gliding": 3,
+			"neutral": 25
+		},
+		{
+			"name": "Wario's Galleon",
+			"road": 48,
+			"rough": 0,
+			"water": 27,
+			"gliding": 0,
+			"neutral": 25
+		},
+		{
+			"name": "Koopa Troopa Beach",
+			"road": 0,
+			"rough": 81,
+			"water": 13,
+			"gliding": 0,
+			"neutral": 6
+		},
+		{
+			"name": "Faraway Oasis",
+			"road": 27,
+			"rough": 27,
+			"water": 25,
+			"gliding": 0,
+			"neutral": 21
+		},
+		{
+			"name": "Peach Stadium",
+			"road": 92,
+			"rough": 0,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 8
+		},
+		{
+			"name": "Peach Beach",
+			"road": 51,
+			"rough": 14,
+			"water": 23,
+			"gliding": 9,
+			"neutral": 3
+		},
+		{
+			"name": "Salty Salty Speedway",
+			"road": 49,
+			"rough": 0,
+			"water": 17,
+			"gliding": 10,
+			"neutral": 24
+		},
+		{
+			"name": "Dino Dino Jungle",
+			"road": 26,
+			"rough": 50,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 24
+		},
+		{
+			"name": "Great ? Block Ruins",
+			"road": 63,
+			"rough": 0,
+			"water": 0,
+			"gliding": 13,
+			"neutral": 24
+		},
+		{
+			"name": "Cheep Cheep Falls",
+			"road": 48,
+			"rough": 0,
+			"water": 36,
+			"gliding": 0,
+			"neutral": 16
+		},
+		{
+			"name": "Dandelion Depths",
+			"road": 66,
+			"rough": 19,
+			"water": 12,
+			"gliding": 0,
+			"neutral": 3
+		},
+		{
+			"name": "Boo Cinema",
+			"road": 80,
+			"rough": 0,
+			"water": 0,
+			"gliding": 10,
+			"neutral": 10
+		},
+		{
+			"name": "Dry Bones Burnout",
+			"road": 72,
+			"rough": 0,
+			"water": 2,
+			"gliding": 10,
+			"neutral": 16
+		},
+		{
+			"name": "Moo Moo Meadows",
+			"road": 5,
+			"rough": 88,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 7
+		},
+		{
+			"name": "Choco Mountain",
+			"road": 39,
+			"rough": 51,
+			"water": 10,
+			"gliding": 0,
+			"neutral": 0
+		},
+		{
+			"name": "Toad's Factory",
+			"road": 69,
+			"rough": 12,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 19
+		},
+		{
+			"name": "Bowser's Castle",
+			"road": 65,
+			"rough": 0,
+			"water": 5,
+			"gliding": 16,
+			"neutral": 14
+		},
+		{
+			"name": "Acorn Heights",
+			"road": 28,
+			"rough": 20,
+			"water": 0,
+			"gliding": 13,
+			"neutral": 39
+		},
+		{
+			"name": "Mario Circuit",
+			"road": 89,
+			"rough": 0,
+			"water": 0,
+			"gliding": 0,
+			"neutral": 11
+		},
+		{
+			"name": "Rainbow Road",
+			"road": 71,
+			"rough": 0,
+			"water": 5,
+			"gliding": 20,
+			"neutral": 4
+		}
+	]
+}

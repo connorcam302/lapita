@@ -1,4 +1,5 @@
 import type { Doc } from '../convex/_generated/dataModel';
+import { isValidFinishPosition } from './grand-prix';
 
 export type TrackRace = Doc<'races'> & {
 	grandPrixOrder: number | null;
@@ -6,11 +7,8 @@ export type TrackRace = Doc<'races'> & {
 	results: Doc<'results'>[];
 };
 
-export function validPosition(position: number | null | undefined): position is number {
-	return (
-		typeof position === 'number' && Number.isInteger(position) && position >= 1 && position <= 24
-	);
-}
+// Retain the public alias for existing track consumers.
+export const validPosition = isValidFinishPosition;
 
 export function summarizePositions(positions: number[]) {
 	const count = positions.length;
@@ -75,4 +73,38 @@ export function summarizeTrack(races: TrackRace[]) {
 			count: finished.filter((result) => result.position === index + 1).length
 		}))
 	};
+}
+
+/** Scheduled counts and individual finishes intentionally use different denominators. */
+export function summarizeTrackOverview(
+	tracks: Pick<Doc<'tracks'>, '_id' | 'name' | 'img'>[],
+	users: Pick<Doc<'users'>, '_id' | 'name'>[],
+	races: {
+		trackEndId: Doc<'tracks'>['_id'];
+		results: Pick<Doc<'results'>, 'userId' | 'position'>[];
+	}[]
+) {
+	return tracks.map((track) => {
+		const trackRaces = races.filter((race) => race.trackEndId === track._id);
+		const finishes = trackRaces.flatMap((race) =>
+			race.results.filter((result) => isValidFinishPosition(result.position))
+		);
+		const userAverages = users
+			.flatMap((user) => {
+				const positions = finishes
+					.filter((result) => result.userId === user._id)
+					.map((result) => result.position!);
+				const { average, count } = summarizePositions(positions);
+				return average === null ? [] : [{ userId: user._id, userName: user.name, average, count }];
+			})
+			.sort((a, b) => a.average - b.average);
+		return {
+			trackId: track._id,
+			trackName: track.name,
+			trackImg: track.img,
+			averageParticipants: trackRaces.length ? finishes.length / trackRaces.length : null,
+			userAverages,
+			counts: trackRaces.length
+		};
+	});
 }

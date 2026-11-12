@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { useConvexClient, useQuery } from 'convex-svelte';
-	import { ConvexError } from 'convex/values';
+	import { useConvexClient } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { toast } from 'svelte-sonner';
 	import { api } from '../../../convex/_generated/api';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -30,11 +30,8 @@
 			const count = await client.mutation(api.gps.setEra, { from: from!, to: to!, era: name });
 			open = false;
 			toast.success(`${name.trim() ? 'Era saved for' : 'Era removed from'} ${count} Grand Prix.`);
-		} catch (cause) {
-			error =
-				cause instanceof ConvexError
-					? String(cause.data)
-					: 'Could not save the era. Your entries have been kept. Try again.';
+		} catch {
+			error = 'Could not save the era. Check the range and try again. Your entries have been kept.';
 		} finally {
 			saving = false;
 		}

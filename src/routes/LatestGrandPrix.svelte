@@ -9,7 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Progress } from '$lib/components/ui/progress';
 	import { getRaceContext, isComplete } from './home-data';
-	import { useQuery } from 'convex-svelte';
+	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import dayjs from 'dayjs';
 
 	let {
@@ -23,7 +23,7 @@
 	} = $props();
 
 	const complete = $derived(isComplete(gp));
-	const raceQuery = $derived(useQuery(api.races.inGrandPrix, { grandPrixId: gp.grandPrixId }));
+	const raceQuery = useQuery(api.races.inGrandPrix, () => ({ grandPrixId: gp.grandPrixId }));
 	const context = $derived(getRaceContext(raceQuery.data ?? [], gp.nextRaceId, complete));
 	const currentTrack = $derived(tracks.find((track) => track._id === context.current?.trackEndId));
 	const previousTrack = $derived(
@@ -52,25 +52,35 @@
 				<span class="mx-2" aria-hidden="true">·</span>{gp.standings.length} racers
 			</p>
 		</div>
-		<Button
-			{href}
-			variant={complete ? 'outline' : 'secondary'}
-			size="lg"
-			class="h-11 w-full shadow-none sm:w-auto"
-		>
-			{complete ? 'View results' : started ? 'Continue Grand Prix' : 'Start racing'}
-			<ArrowRight aria-hidden="true" />
-		</Button>
+		<div class="flex w-full flex-wrap gap-2 sm:w-auto">
+			{#if complete}
+				<Button
+					variant="secondary"
+					size="lg"
+					href={resolve('/grandprix/[id]/recap', { id: gp.grandPrixId })}>View recap</Button
+				>
+			{/if}
+			<Button
+				{href}
+				variant={complete ? 'outline' : 'secondary'}
+				size="lg"
+				class="h-11 w-full shadow-none sm:w-auto"
+			>
+				{complete ? 'View results' : started ? 'Continue Grand Prix' : 'Start racing'}
+				<ArrowRight aria-hidden="true" />
+			</Button>
+		</div>
 	</header>
 
 	<div class="grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
 		<div class="border-b p-5 sm:p-6 md:border-r md:border-b-0">
-			{#if raceQuery.isLoading}
-				<p class="text-muted-foreground text-sm" role="status">Loading tracks…</p>
-			{:else if raceQuery.error}
+			{#if raceQuery.error}
 				<p class="text-muted-foreground text-sm" role="alert">
-					Could not load tracks. Reload the page to try again.
+					Could not load tracks. Check your connection and try again.
 				</p>
+				<Button variant="outline" size="sm" onclick={raceQuery.retry}>Try again</Button>
+			{:else if raceQuery.isLoading}
+				<p class="text-muted-foreground text-sm" role="status">Loading tracks…</p>
 			{:else}
 				{#if currentTrack}
 					<img

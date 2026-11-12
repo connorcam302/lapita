@@ -1,3 +1,5 @@
+import { hasTrackSample } from '$lib/track-ranking';
+import { isValidFinishPosition } from '$lib/grand-prix';
 import type { FunctionReturnType } from 'convex/server';
 import type { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
@@ -26,9 +28,7 @@ export function summarizePlayer(results: PlayerResult[], standings: Standing[]) 
 			!!result.trackStartId &&
 			!!result.trackEndId &&
 			!!result.grandPrixId &&
-			Number.isInteger(result.position) &&
-			result.position! >= 1 &&
-			result.position! <= 24
+			isValidFinishPosition(result.position)
 	);
 	const finished = [...validResults].sort(
 		(a, b) => b.grandPrixOrder - a.grandPrixOrder || b._creationTime - a._creationTime
@@ -96,14 +96,16 @@ export function summarizePlayer(results: PlayerResult[], standings: Standing[]) 
 						result.position
 					]);
 				}
-				const ranked = [...trackPositions].sort((a, b) => average(a[1])! - average(b[1])!);
+				const ranked = [...trackPositions]
+					.filter(([, positions]) => hasTrackSample(positions.length))
+					.sort((a, b) => average(a[1])! - average(b[1])!);
 				return {
 					...combo,
 					raceCount: combo.results.length,
 					averagePlacement: average(combo.results.map((result) => result.position))!,
 					averageGpPoints: average(combo.gpPoints),
-					bestTrack: ranked[0][0],
-					worstTrack: ranked.at(-1)![0]
+					bestTrack: ranked[0]?.[0] ?? null,
+					worstTrack: ranked.at(-1)?.[0] ?? null
 				};
 			})
 			.sort((a, b) => b.raceCount - a.raceCount)

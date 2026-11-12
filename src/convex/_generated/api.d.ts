@@ -16,6 +16,7 @@ import type * as migrations from "../migrations.js";
 import type * as races from "../races.js";
 import type * as records from "../records.js";
 import type * as results from "../results.js";
+import type * as rivalry from "../rivalry.js";
 import type * as standings from "../standings.js";
 import type * as tracks from "../tracks.js";
 import type * as users from "../users.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   races: typeof races;
   records: typeof records;
   results: typeof results;
+  rivalry: typeof rivalry;
   standings: typeof standings;
   tracks: typeof tracks;
   users: typeof users;

@@ -10,4 +10,4 @@
 		class="focus-visible:outline-ring rounded-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2"
 		>{name}</a
 	>
-{:else}—{/if}
+{:else}{name}{/if}

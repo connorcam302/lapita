@@ -63,7 +63,7 @@ test('combination GP stats use the most-used setup, with no NaN for unused GP at
 	);
 	assert.equal(profile.combinations[0].gpWins, 1);
 	assert.equal(profile.combinations[0].averageGpPoints, 100);
-	assert.equal(profile.combinations[0].bestTrack, 'start');
+	assert.equal(profile.combinations[0].bestTrack, null);
 	assert.equal(profile.combinations[1].averageGpPoints, null);
 });
 
@@ -108,4 +108,24 @@ test('leading an unfinished GP does not award a combination win', () => {
 		]
 	);
 	assert.equal(profile.combinations[0].gpWins, 0);
+});
+
+test('best and worst combination tracks require five valid finishes per track', () => {
+	const profile = summarizePlayer(
+		[
+			...Array.from({ length: 4 }, (_, i) => ({
+				...race(1, i),
+				trackStartId: 'tiny' as Id<'tracks'>
+			})),
+			...Array.from({ length: 5 }, (_, i) => race(3, i + 10)),
+			...Array.from({ length: 5 }, (_, i) => ({
+				...race(8, i + 20),
+				trackStartId: 'hard' as Id<'tracks'>
+			})),
+			{ ...race(0, 99), trackStartId: 'tiny' as Id<'tracks'> }
+		],
+		[]
+	);
+	assert.equal(profile.combinations[0].bestTrack, 'start');
+	assert.equal(profile.combinations[0].worstTrack, 'hard');
 });

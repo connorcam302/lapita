@@ -386,3 +386,33 @@ export const setEra = mutation({
 		return gps.length;
 	}
 });
+
+/** Latest by GP order, including manual completion, without limiting to a history page. */
+export const latestCompleted = query({
+	args: {},
+	handler: async (ctx) => {
+		const gps = ctx.db.query('grandPrix').withIndex('order').order('desc');
+		for await (const gp of gps) {
+			if (gp.deletedAt !== undefined || gp.participants.length === 0) continue;
+			const races = await ctx.db
+				.query('races')
+				.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp._id))
+				.collect();
+			if (!races.length) continue;
+			if (gp.completedAt !== undefined) return { id: gp._id, order: gp.order };
+			let complete = true;
+			for (const race of races) {
+				const results = await ctx.db
+					.query('results')
+					.withIndex('raceId', (q) => q.eq('raceId', race._id))
+					.collect();
+				if (!hasAllResults(gp.participants, results)) {
+					complete = false;
+					break;
+				}
+			}
+			if (complete) return { id: gp._id, order: gp.order };
+		}
+		return null;
+	}
+});

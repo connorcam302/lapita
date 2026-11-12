@@ -1,0 +1,117 @@
+{
+	"sourceName": "The Mario Kart World Statpedia",
+	"source": "https://docs.google.com/spreadsheets/d/1EQd2XYGlB3EFFNE-35hFLaBzJo4cipU9DZT4MRSjBlc/edit?gid=256119843#gid=256119843",
+	"retrieved": "2026-11-12",
+	"formula": "Combo Rankings WIP!AG6:AJ6 (Total 1 / Classic Races); uses actual cell formulas, not the differing descriptive note",
+	"speedScale": 70000,
+	"coinCoefficient": 0.00131,
+	"coinBaseline": 3,
+	"handlingScale": 18.39,
+	"handlingDecay": 0.05,
+	"handlingWeight": 40,
+	"roadHandlingMultiplier": 1.3,
+	"accelerationWeight": 65.0,
+	"miniTurboWeight": 12.0,
+	"weightWeight": 8.0,
+	"invincibilityWeight": 4.0,
+	"characterOffsets": {
+		"roadSpeed": 7,
+		"terrainSpeed": 7,
+		"waterSpeed": 7,
+		"glidingSpeed": 10,
+		"acceleration": 7,
+		"miniTurbo": 8,
+		"coinCurve": 6,
+		"weight": 6,
+		"roadHandling": 7,
+		"terrainHandling": 7,
+		"waterHandling": 7,
+		"invincibility": 5
+	},
+	"kartOffsets": {
+		"roadSpeed": -5,
+		"terrainSpeed": -5,
+		"waterSpeed": -5,
+		"glidingSpeed": 0,
+		"acceleration": -4,
+		"miniTurbo": -4,
+		"coinCurve": -3,
+		"weight": -3,
+		"roadHandling": -5,
+		"terrainHandling": -5,
+		"waterHandling": -5,
+		"invincibility": -4
+	},
+	"referenceCoverage": {
+		"road": 54.38861696,
+		"rough": 18.099363620000002,
+		"water": 6.590007915,
+		"gliding": 4.499085009,
+		"neutral": 16.422926490000002
+	},
+	"referenceFixtures": [
+		{
+			"row": 6,
+			"stats": {
+				"roadSpeed": 9,
+				"terrainSpeed": 4,
+				"waterSpeed": 4,
+				"glidingSpeed": 10,
+				"acceleration": 16,
+				"miniTurbo": 14,
+				"coinCurve": 17,
+				"weight": 4,
+				"roadHandling": 17,
+				"terrainHandling": 13,
+				"waterHandling": 13,
+				"invincibility": 2
+			},
+			"total": 2276.398153,
+			"speed": 643.7887196,
+			"handling": 384.6094334,
+			"other": 1248
+		},
+		{
+			"row": 12,
+			"stats": {
+				"roadSpeed": 12,
+				"terrainSpeed": 11,
+				"waterSpeed": 11,
+				"glidingSpeed": 10,
+				"acceleration": 10,
+				"miniTurbo": 9,
+				"coinCurve": 13,
+				"weight": 8,
+				"roadHandling": 12,
+				"terrainHandling": 10,
+				"waterHandling": 10,
+				"invincibility": 9
+			},
+			"total": 2254.764181,
+			"speed": 1090.637803,
+			"handling": 306.1263777,
+			"other": 858
+		},
+		{
+			"row": 30,
+			"stats": {
+				"roadSpeed": 13,
+				"terrainSpeed": 12,
+				"waterSpeed": 12,
+				"glidingSpeed": 10,
+				"acceleration": 9,
+				"miniTurbo": 8,
+				"coinCurve": 11,
+				"weight": 9,
+				"roadHandling": 11,
+				"terrainHandling": 9,
+				"waterHandling": 9,
+				"invincibility": 12
+			},
+			"total": 2175.192686,
+			"speed": 1088.348954,
+			"handling": 285.8437316,
+			"other": 801
+		}
+	]
+}

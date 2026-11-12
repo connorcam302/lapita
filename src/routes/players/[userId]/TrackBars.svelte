@@ -38,10 +38,6 @@
 
 <section class="bg-card min-w-0 rounded-md border p-4 sm:p-6" aria-labelledby="tracks-heading">
 	<h2 id="tracks-heading" class="font-title text-lg">Track averages</h2>
-	<p class="text-muted-foreground mt-2 text-sm">
-		All-time and last-10 average finishes. Lower is better; recent averages use up to 10 races.
-		Scroll sideways to compare tracks.
-	</p>
 	<div class="text-muted-foreground my-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
 		<span class="flex items-center gap-2"
 			><span class="bg-foreground h-2 w-5 rounded-xs"></span>All time</span
