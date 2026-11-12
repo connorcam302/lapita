@@ -22,6 +22,7 @@ export default defineSchema({
 	}).index('name', ['name']),
 
 	grandPrix: defineTable({
+		era: v.optional(v.string()),
 		deletedAt: v.optional(v.number()),
 		completedAt: v.optional(v.number()),
 		order: v.number(),

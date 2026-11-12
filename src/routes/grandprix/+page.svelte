@@ -12,6 +12,8 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import dayjs from 'dayjs';
+	import SetEra from '$lib/components/custom/SetEra.svelte';
+	import EraTag from '$lib/components/custom/EraTag.svelte';
 
 	const archive = useQuery(api.gps.archive, {});
 	const players = $derived(
@@ -22,11 +24,14 @@
 	);
 	const filters: ArchiveFilters = $derived(
 		Object.fromEntries(
-			['q', 'status', 'player', 'winner', 'track', 'from', 'to', 'sort'].map((key) => [
+			['era', 'q', 'status', 'player', 'winner', 'track', 'from', 'to', 'sort'].map((key) => [
 				key,
 				page.url.searchParams.get(key) ?? ''
 			])
 		) as ArchiveFilters
+	);
+	const eras = $derived(
+		[...new Set((archive.data ?? []).flatMap((gp) => (gp.era ? [gp.era] : [])))].sort()
 	);
 	const matches = $derived(filterArchive(archive.data ?? [], filters, players));
 	let visibleCount = $state(24);
@@ -56,8 +61,9 @@
 </svelte:head>
 
 <main class="archive mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
-	<header class="mb-7">
+	<header class="mb-7 flex flex-wrap items-center justify-between gap-3">
 		<h1 class="font-title text-2xl sm:text-3xl">All Grand Prix</h1>
+		<SetEra />
 	</header>
 	<form onsubmit={apply} class="bg-card rounded-md border p-4 sm:p-5">
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -68,7 +74,7 @@
 					name="q"
 					type="search"
 					value={filters.q}
-					placeholder="GP number or player name"
+					placeholder="GP number, player or era"
 				/>
 			</div>
 			<div>
@@ -100,6 +106,16 @@
 					>
 				</div>
 			{/each}
+			<div class="sm:col-span-2">
+				<label for="gp-era" class="mb-2 block text-sm font-medium">Era</label>
+				<select id="gp-era" name="era" value={filters.era ?? ''}>
+					<option value="">All eras</option>
+					{#if filters.era && !eras.includes(filters.era)}<option value={filters.era}
+							>{filters.era}</option
+						>{/if}
+					{#each eras as era (era)}<option value={era}>{era}</option>{/each}
+				</select>
+			</div>
 			<div class="sm:col-span-2">
 				<label for="gp-track" class="mb-2 block text-sm font-medium">Track</label>
 				<select id="gp-track" name="track" value={filters.track}
@@ -161,6 +177,7 @@
 							href={resolve('/grandprix/[id]', { id: gp.grandPrixId })}>Grand Prix {gp.order}</a
 						>
 					</h2>
+					<EraTag era={gp.era} />
 					<time
 						class="text-muted-foreground mt-1 block text-sm"
 						datetime={new Date(gp.createdAt).toISOString()}

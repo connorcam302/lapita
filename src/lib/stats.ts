@@ -4,7 +4,7 @@ import { placementToPoints } from './utils';
 
 type Gp = Pick<
 	Doc<'grandPrix'>,
-	'_id' | '_creationTime' | 'order' | 'participants' | 'deletedAt' | 'completedAt'
+	'_id' | '_creationTime' | 'order' | 'participants' | 'deletedAt' | 'completedAt' | 'era'
 >;
 type Race = Pick<Doc<'races'>, '_id' | 'grandPrixId' | 'order' | 'trackEndId'>;
 type Result = Pick<Doc<'results'>, 'raceId' | 'userId' | 'position' | 'characterId' | 'kartId'>;
@@ -54,6 +54,7 @@ export function calculateStats(
 		grandPrixId: Gp['_id'];
 		order: number;
 		date: number;
+		era?: string;
 		races: number;
 		gpWins: Record<string, number>;
 		raceWins: Record<string, number>;
@@ -116,6 +117,7 @@ export function calculateStats(
 			grandPrixId: gp._id,
 			order: gp.order,
 			date: gp._creationTime,
+			era: gp.era,
 			races: raceCount,
 			gpWins: Object.fromEntries(players.map((p) => [p.userId, p.gpWins])),
 			raceWins: Object.fromEntries(players.map((p) => [p.userId, p.wins]))

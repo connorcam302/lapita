@@ -11,6 +11,7 @@
 	import * as Table from '$lib/components/ui/table/index.js';
 	import StatsBars from './StatsBars.svelte';
 	import { groupGpActivity } from '$lib/gp-activity';
+	import { groupEraBands } from '$lib/gp-era-bands';
 
 	const stats = useQuery(api.records.stats, {});
 	let metric = $state<'gpWins' | 'raceWins'>('gpWins');
@@ -33,8 +34,13 @@
 		) satisfies Chart.ChartConfig
 	);
 	const timeline = $derived(
-		stats.data?.timeline.map((gp) => ({ order: gp.order, ...gp[metric] })) ?? []
+		stats.data?.timeline.map((gp) => ({ order: gp.order, era: gp.era, ...gp[metric] })) ?? []
 	);
+	const eraBands = $derived(groupEraBands(stats.data?.timeline ?? []));
+	const timelineDomain = $derived<[number, number]>([
+		(timeline[0]?.order ?? 1) - 0.5,
+		(timeline.at(-1)?.order ?? 1) + 0.5
+	]);
 	const rankedPlayers = $derived(
 		[...players].sort((a, b) =>
 			ranking === 'average'
@@ -162,6 +168,30 @@
 					>
 				{/each}
 			</div>
+			{#if eraBands.length}
+				<div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs" aria-label="Era colors">
+					{#each eraBands as band (`${band.era}-${band.from}`)}
+						<a
+							href={resolve(`/grandprix?era=${encodeURIComponent(band.era)}`)}
+							class="focus-visible:ring-ring flex max-w-full items-baseline gap-2 rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+						>
+							<span
+								class="size-3 shrink-0 self-center rounded-sm"
+								style:background={band.color}
+								aria-hidden="true"
+							></span>
+							<span class="min-w-0 break-words"
+								>{band.era}
+								<span class="text-muted-foreground"
+									>· {band.from === band.to
+										? `GP ${band.from}`
+										: `GPs ${band.from}–${band.to}`}</span
+								></span
+							>
+						</a>
+					{/each}
+				</div>
+			{/if}
 			{#if visiblePlayers.length}
 				<Chart.Container
 					{config}
@@ -171,6 +201,8 @@
 					<LineChart
 						data={timeline}
 						x="order"
+						xDomain={timelineDomain}
+						xNice={false}
 						{series}
 						yDomain={[0, null]}
 						rule={false}
@@ -183,8 +215,26 @@
 							yAxis: { format: (value) => (Number.isInteger(value) ? `${value}` : '') }
 						}}
 					>
+						{#snippet belowMarks({ context })}
+							<g class="pointer-events-none" aria-hidden="true">
+								{#each eraBands as band (`${band.era}-${band.from}`)}
+									<rect
+										x={context.xScale(band.from - 0.5)}
+										y={0}
+										width={Math.max(
+											0,
+											context.xScale(band.to + 0.5) - context.xScale(band.from - 0.5)
+										)}
+										height={context.height}
+										fill={band.color}
+										fill-opacity={0.16}
+									/>
+								{/each}
+							</g>
+						{/snippet}
 						{#snippet tooltip()}<Chart.Tooltip
-								labelFormatter={(_, payload) => `Grand Prix ${payload[0]?.payload?.order ?? ''}`}
+								labelFormatter={(_, payload) =>
+									`Grand Prix ${payload[0]?.payload?.order ?? ''} · ${payload[0]?.payload?.era ?? 'No era'}`}
 							/>{/snippet}
 					</LineChart>
 				</Chart.Container>
@@ -200,7 +250,7 @@
 					<Table.Root
 						><Table.Header
 							><Table.Row
-								><Table.Head>Grand Prix</Table.Head
+								><Table.Head>Grand Prix</Table.Head><Table.Head>Era</Table.Head
 								>{#each visiblePlayers as player (player.userId)}<Table.Head class="text-right"
 										>{player.name}</Table.Head
 									>{/each}</Table.Row
@@ -212,6 +262,7 @@
 											class="underline underline-offset-4"
 											href={resolve('/grandprix/[id]', { id: gp.grandPrixId })}>GP {gp.order}</a
 										></Table.Cell
+									><Table.Cell>{gp.era ?? '—'}</Table.Cell
 									>{#each visiblePlayers as player (player.userId)}<Table.Cell
 											class="text-right tabular-nums">{gp[metric][player.userId] ?? 0}</Table.Cell
 										>{/each}</Table.Row

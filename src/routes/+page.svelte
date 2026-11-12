@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EraTag from '$lib/components/custom/EraTag.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
@@ -108,6 +109,7 @@
 										>Grand Prix {gp.order}</a
 									>
 								</h4>
+								<EraTag era={gp.era} />
 								<time
 									class="text-muted-foreground mt-1 block text-sm"
 									datetime={new Date(gp.createdAt).toISOString()}

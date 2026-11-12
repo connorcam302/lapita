@@ -1,4 +1,6 @@
 <script lang="ts">
+	import EraTag from '$lib/components/custom/EraTag.svelte';
+	import SetEra from '$lib/components/custom/SetEra.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { ConvexError } from 'convex/values';
@@ -81,8 +83,12 @@
 </script>
 
 <div class="flex flex-wrap items-center justify-between gap-3 pb-2">
-	<h1 class="font-title text-xl">Grand Prix {grandPrix.order}</h1>
+	<div>
+		<h1 class="font-title text-xl">Grand Prix {grandPrix.order}</h1>
+		<EraTag era={grandPrix.era} />
+	</div>
 	<div class="flex flex-wrap gap-2">
+		<SetEra order={grandPrix.order} era={grandPrix.era} />
 		<Sheet.Root bind:open={addOpen}>
 			<Sheet.Trigger
 				class={buttonVariants({ variant: 'outline', size: 'sm' })}

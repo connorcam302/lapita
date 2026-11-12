@@ -26,6 +26,7 @@ export function buildArchive(
 		return {
 			grandPrixId: gp._id,
 			order: gp.order,
+			era: gp.era,
 			createdAt: gp._creationTime,
 			participants: gp.participants,
 			trackIds: [...new Set(gpRaces.flatMap((race) => [race.trackStartId, race.trackEndId]))],
@@ -45,6 +46,7 @@ export function buildArchive(
 export type ArchiveEntry = ReturnType<typeof buildArchive>[number];
 export type ArchiveFilters = {
 	q: string;
+	era?: string;
 	status: string;
 	player: string;
 	winner: string;
@@ -64,13 +66,14 @@ export function filterArchive(
 	return entries
 		.filter((gp) => {
 			const text =
-				`grand prix gp ${gp.order} ${gp.participants.map((id) => names.get(id) ?? '').join(' ')}`.toLowerCase();
+				`grand prix gp ${gp.order} ${gp.era ?? ''} ${gp.participants.map((id) => names.get(id) ?? '').join(' ')}`.toLowerCase();
 			// Local calendar dates match the date shown on the page, including the entire end day.
 			const date = new Date(gp.createdAt);
 			const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 			return (
 				terms.every((term) => text.includes(term)) &&
 				(!filters.status || gp.status === filters.status) &&
+				(!filters.era || gp.era === filters.era) &&
 				(!filters.player || gp.participants.some((id) => id === filters.player)) &&
 				(!filters.winner || gp.winnerIds.some((id) => id === filters.winner)) &&
 				(!filters.track || gp.trackIds.some((id) => id === filters.track)) &&

@@ -106,3 +106,20 @@ test('manually completed GPs have winners from valid recorded results', () => {
 	assert.equal(entry.completedRaces, 0);
 	assert.deepEqual(entry.winnerIds, [alice]);
 });
+
+test('era tags survive aggregation and support exact filters and word searches with other filters', () => {
+	const tagged = buildArchive(
+		gps.map((gp) => ({ ...gp, era: gp.order <= 2 ? 'Dixie Dean Arc' : undefined })),
+		races,
+		results,
+		standings
+	);
+	assert.equal(tagged[0].era, 'Dixie Dean Arc');
+	const matches = (filters: Partial<ArchiveFilters>) =>
+		filterArchive(tagged, { ...defaults, ...filters }, players).map((gp) => gp.order);
+	assert.deepEqual(matches({ era: 'Dixie Dean Arc' }), [2, 1]);
+	assert.deepEqual(matches({ era: 'Dixie Dean Arc', status: 'complete' }), [1]);
+	assert.deepEqual(matches({ q: 'dIxIe ALICE dean' }), [2, 1]);
+	assert.deepEqual(matches({ era: 'Missing era' }), []);
+	assert.deepEqual(matches({ era: '' }), [3, 2, 1]);
+});

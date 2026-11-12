@@ -568,3 +568,24 @@ Focused tests: `bun run tsx --test src/lib/stats.test.ts`.
 
 Page headings omit introductory subheadings. Keep supporting chart explanations, summary totals,
 data notes, and loading/error recovery messages where they help users interpret the page.
+
+### Grand Prix eras
+
+`grandPrix.era` is an optional name (trimmed, up to 80 characters); each GP has one era.
+The archive's Tag GP era control and the GP heading's Edit era control share
+`SetEra.svelte`. `gps.setEra` applies or clears tags on existing, non-deleted GPs in an
+inclusive positive-integer GP order range. It replaces prior tags, rejects empty ranges,
+and never tags future GPs implicitly. Deleted GP tags are retained through restoration.
+`gps.eraOptions` supplies existing names for reuse. Tags appear in the home history,
+latest GP, archive and GP heading, linking to `/grandprix?era=<name>`; archive search also
+matches era names. Era filters compose with other URL filters. No authentication is added.
+Checks: `node --import tsx --test tests/gp-eras.test.ts src/lib/gp-archive.test.ts`.
+
+The Stats wins-over-time chart shades contiguous GP ranges by era for both win metrics.
+Player line colors remain independent. `records.stats` carries current era names in its
+timeline; `$lib/gp-era-bands.ts` groups adjacent GP orders, leaving untagged or missing
+GP numbers unshaded. Era names deterministically set band colors; repeated names reuse
+colors. The legend names eras and GP ranges and links to the filtered archive. Tooltips
+and the expandable data table also show eras. Bands use LayerChart's `belowMarks`
+snippet and its live x scale; the domain extends half a GP beyond each endpoint so
+single-GP eras stay visible. Tests: `node --import tsx --test src/lib/gp-era-bands.test.ts src/lib/stats.test.ts`.

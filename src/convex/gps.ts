@@ -76,6 +76,7 @@ export const getAll = query({
 					grandPrixId: gp._id,
 					createdAt: gp._creationTime,
 					order: gp.order,
+					era: gp.era,
 					standings: sortedStandings,
 					raceCount: races.length,
 					completedRaces: completed.length,
@@ -351,5 +352,37 @@ export const setComplete = mutation({
 		await ctx.db.patch(grandPrixId, {
 			completedAt: complete ? (gp.completedAt ?? Date.now()) : undefined
 		});
+	}
+});
+
+/** Era tags belong to existing GPs; future GPs are never tagged implicitly. */
+export const eraOptions = query({
+	args: {},
+	handler: async (ctx) => {
+		const gps = await ctx.db.query('grandPrix').collect();
+		return [
+			...new Set(
+				gps.filter((gp) => gp.deletedAt === undefined).flatMap((gp) => (gp.era ? [gp.era] : []))
+			)
+		].sort();
+	}
+});
+
+export const setEra = mutation({
+	args: { from: v.number(), to: v.number(), era: v.string() },
+	handler: async (ctx, { from, to, era }) => {
+		if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < 1 || to < from)
+			throw new ConvexError('Enter a valid GP range, starting at 1 or higher.');
+		const name = era.trim();
+		if (name.length > 80) throw new ConvexError('Era names must be 80 characters or fewer.');
+		const gps = (
+			await ctx.db
+				.query('grandPrix')
+				.withIndex('order', (q) => q.gte('order', from).lte('order', to))
+				.collect()
+		).filter((gp) => gp.deletedAt === undefined);
+		if (!gps.length) throw new ConvexError('No available Grand Prix in this range.');
+		for (const gp of gps) await ctx.db.patch(gp._id, { era: name || undefined });
+		return gps.length;
 	}
 });

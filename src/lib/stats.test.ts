@@ -132,3 +132,29 @@ test('manual completion uses recorded points for GP wins and matches Records', (
 test('manual completion with no scheduled races does not count a GP', () => {
 	assert.equal(calculate([gp(1, { completedAt: 100 })], [], []).completedGps, 0);
 });
+
+test('timeline carries current era tags, excludes deleted eras, and preserves win totals', () => {
+	const gps = [
+		gp(1, { era: 'Dixie Dean Arc' }),
+		gp(2),
+		gp(3, { era: 'Deleted arc', deletedAt: 1 })
+	];
+	const races = [race(0), race(0, 'gp2')];
+	const results = races.flatMap((r) => [result(r, alice, 1), result(r, bob, 2)]);
+	const stats = calculate(gps, races, results);
+	assert.deepEqual(
+		stats.timeline.map(({ order, era }) => [order, era]),
+		[
+			[1, 'Dixie Dean Arc'],
+			[2, undefined]
+		]
+	);
+	assert.deepEqual(
+		stats.timeline.map((gp) => gp.gpWins[alice]),
+		[1, 2]
+	);
+	assert.deepEqual(
+		stats.timeline.map((gp) => gp.raceWins[alice]),
+		[1, 2]
+	);
+});

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EraTag from '$lib/components/custom/EraTag.svelte';
 	import { resolve } from '$app/paths';
 	import { ArrowRight } from '@lucide/svelte';
 	import type { FunctionReturnType } from 'convex/server';
@@ -43,6 +44,7 @@
 					{complete ? 'Complete' : started ? 'In progress' : 'Not started'}
 				</span>
 			</div>
+			<EraTag era={gp.era} />
 			<p class="text-muted-foreground mt-1.5 text-sm">
 				<time datetime={new Date(gp.createdAt).toISOString()}
 					>{dayjs(gp.createdAt).format('D MMM YYYY')}</time
