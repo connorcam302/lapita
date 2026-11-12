@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ManageGP from './ManageGP.svelte';
 	import { ConvexError } from 'convex/values';
 	import { isValidFinishPosition } from '$lib/grand-prix';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
@@ -65,7 +66,13 @@
 
 	let tab = $state('results');
 
-	let { grandPrixDetails } = data;
+	const liveGp = useQuery(api.gps.getOne, () => ({ id: data.grandPrixDetails._id }));
+	let grandPrixDetails = $derived({
+		...(liveGp.data ?? data.grandPrixDetails),
+		participants: [...(liveGp.data ?? data.grandPrixDetails).participants].sort((a, b) =>
+			b.localeCompare(a)
+		)
+	});
 
 	let kartList = $derived(convexStore.allKarts);
 	let characterList = $derived(convexStore.allCharacters);
@@ -110,7 +117,7 @@
 	);
 	let selectedRaceId = $derived(
 		!raceList.isLoading &&
-			((page.url.searchParams.get('track') || raceList?.data[0]!._id) as Id<'races'>)
+			((page.url.searchParams.get('track') || raceList.data?.[0]?._id) as Id<'races'>)
 	);
 
 	let selectedRace = $derived(
@@ -246,7 +253,10 @@
 		if (!stats) return;
 		const userResults = stats
 			.map((race) => race.results.find((result) => result.userId === userId))
-			.filter((result) => Object.hasOwn(result, 'kartId') && Object.hasOwn(result, 'characterId'));
+			.filter(
+				(result) =>
+					result && Object.hasOwn(result, 'kartId') && Object.hasOwn(result, 'characterId')
+			);
 
 		if (userResults.length === 0) return;
 
@@ -411,15 +421,16 @@
 			})
 	);
 
-	const chartConfig =
+	const chartConfig = $derived(
 		grandPrixDetails &&
-		(grandPrixDetails.participants.reduce((acc, userId) => {
-			acc[getPlayerName(playerList, userId)] = {
-				label: getPlayerName(playerList, userId),
-				color: '#f5cd30' // or however you generate random colors
-			};
-			return acc;
-		}, {}) satisfies Chart.ChartConfig);
+			(grandPrixDetails.participants.reduce((acc, userId) => {
+				acc[getPlayerName(playerList, userId)] = {
+					label: getPlayerName(playerList, userId),
+					color: '#f5cd30' // or however you generate random colors
+				};
+				return acc;
+			}, {}) satisfies Chart.ChartConfig)
+	);
 	let context = $state<ChartState>();
 
 	const chartKeys = $derived(
@@ -479,6 +490,7 @@
 			class="mx-auto flex max-w-4xl flex-col gap-2 px-2 py-8"
 			transition:fade|global={{ duration: 500, easing: cubicIn }}
 		>
+			<ManageGP grandPrix={grandPrixDetails} players={playerList ?? []} />
 			<Card.Root>
 				<Card.Header>
 					<div class="flex justify-between">

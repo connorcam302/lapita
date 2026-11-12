@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { api } from './_generated/api';
 import { hasAllResults } from '../lib/grand-prix';
@@ -139,12 +139,16 @@ export const newGp = mutation({
 			.withIndex('order')
 			.order('desc')
 			.take(2);
-		const oldGpTracks = await ctx.db
-			.query('races')
-			.filter((q) =>
-				q.or(q.eq(q.field('grandPrixId'), gpMinus2._id), q.eq(q.field('grandPrixId'), gpMinus1._id))
+		const oldGpTracks = (
+			await Promise.all(
+				[gpMinus1, gpMinus2].filter(Boolean).map((gp) =>
+					ctx.db
+						.query('races')
+						.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp._id))
+						.collect()
+				)
 			)
-			.collect();
+		).flat();
 
 		const validTracks = await ctx.runQuery(api.tracks.valid, {});
 
@@ -198,33 +202,32 @@ export const newGp = mutation({
 		const trackList = generateTrackList(trackWeights, 16);
 
 		const newGpId = await ctx.db.insert('grandPrix', {
-			order: gpMinus1.order + 1,
+			order: (gpMinus1?.order ?? 0) + 1,
 			participants
 		});
 
-		const raceList = trackList.map(async (track, i) => {
-			return await ctx.db.insert('races', {
-				grandPrixId: newGpId,
-				trackStartId: track._id,
-				trackEndId: track._id,
-				order: i,
-				transition: false
-			});
-		});
+		const raceList = await Promise.all(
+			trackList.map((track, i) =>
+				ctx.db.insert('races', {
+					grandPrixId: newGpId,
+					trackStartId: track._id,
+					trackEndId: track._id,
+					order: i,
+					transition: false
+				})
+			)
+		);
 
-		participants.forEach((participantId) => {
-			ctx.db.insert('grandPrixStandings', {
+		for (const participantId of participants) {
+			await ctx.db.insert('grandPrixStandings', {
 				grandPrixId: newGpId,
 				points: 0,
 				userId: participantId
 			});
-			raceList.forEach(async (track) => {
-				ctx.db.insert('results', {
-					raceId: await track,
-					userId: participantId
-				});
-			});
-		});
+			for (const raceId of raceList) {
+				await ctx.db.insert('results', { raceId, userId: participantId });
+			}
+		}
 		return newGpId;
 	}
 });
@@ -240,5 +243,54 @@ export const archive = query({
 			ctx.db.query('grandPrixStandings').collect()
 		]);
 		return buildArchive(gps, races, results, standings);
+	}
+});
+
+/** Adding a racer includes every race, allowing earlier results to be backfilled. */
+export const addRacers = mutation({
+	args: { grandPrixId: v.id('grandPrix'), userIds: v.array(v.id('users')) },
+	handler: async (ctx, { grandPrixId, userIds }) => {
+		const gp = await ctx.db.get(grandPrixId);
+		if (!gp) throw new ConvexError('This Grand Prix no longer exists.');
+		if (!userIds.length) throw new ConvexError('Select at least one racer.');
+		const users = await Promise.all([...new Set(userIds)].map((id) => ctx.db.get(id)));
+		if (users.some((user) => !user)) throw new ConvexError('A selected racer no longer exists.');
+		const additions = [...new Set(userIds)].filter((id) => !gp.participants.includes(id));
+		const races = await ctx.db
+			.query('races')
+			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+			.collect();
+		for (const userId of additions) {
+			await ctx.db.insert('grandPrixStandings', { grandPrixId, userId, points: 0 });
+			for (const race of races) {
+				await ctx.db.insert('results', { raceId: race._id, userId });
+			}
+		}
+		await ctx.db.patch(grandPrixId, { participants: [...gp.participants, ...additions] });
+	}
+});
+
+export const remove = mutation({
+	args: { grandPrixId: v.id('grandPrix') },
+	handler: async (ctx, { grandPrixId }) => {
+		if (!(await ctx.db.get(grandPrixId))) return;
+		const races = await ctx.db
+			.query('races')
+			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+			.collect();
+		for (const race of races) {
+			const results = await ctx.db
+				.query('results')
+				.withIndex('raceId', (q) => q.eq('raceId', race._id))
+				.collect();
+			for (const result of results) await ctx.db.delete(result._id);
+			await ctx.db.delete(race._id);
+		}
+		const standings = await ctx.db
+			.query('grandPrixStandings')
+			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+			.collect();
+		for (const standing of standings) await ctx.db.delete(standing._id);
+		await ctx.db.delete(grandPrixId);
 	}
 });

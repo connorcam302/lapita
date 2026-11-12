@@ -2,6 +2,10 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import SearchBox from '$lib/components/custom/SearchBox.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import MoonIcon from '@lucide/svelte/icons/moon';
+	import SunIcon from '@lucide/svelte/icons/sun';
+	import { mode, toggleMode } from 'mode-watcher';
 	import { cn } from '$lib/utils';
 
 	const links = [
@@ -58,6 +62,18 @@
 				>
 			{/each}
 		</nav>
-		<div class="min-w-0 flex-1 lg:ml-auto lg:max-w-sm"><SearchBox /></div>
+		<div class="flex min-w-0 flex-1 items-center gap-2 lg:ml-auto lg:max-w-sm">
+			<div class="min-w-0 flex-1"><SearchBox /></div>
+			<Button
+				variant="outline"
+				size="icon"
+				onclick={toggleMode}
+				aria-label={mode.current === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+				title={mode.current === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+			>
+				<SunIcon class="hidden dark:block" aria-hidden="true" />
+				<MoonIcon class="dark:hidden" aria-hidden="true" />
+			</Button>
+		</div>
 	</div>
 </header>

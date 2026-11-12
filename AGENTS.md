@@ -160,6 +160,15 @@ For a local browser smoke test:
 
 `StartGPButton.svelte` opens a participant-selection sheet with labeled checkboxes, provides Select All, and
 requires at least four selected players in the UI. Its responsive trigger fits narrow screens; failed creation keeps the selection and shows a retry toast. Creating navigates to the new GP.
+The GP page heading includes Add racers and Delete GP controls (`ManageGP.svelte`). Adding
+existing users creates zero-point standings and blank results for every race, including earlier
+races that can be backfilled; completion still requires every participant's result. The participant
+list subscribes to `gps.getOne` so result entry and analytics update live. `gps.addRacers` validates
+users and deduplicates additions. Deletion requires confirmation and `gps.remove` atomically
+removes the GP, its races, results, and standings, then returns to the archive. Missing GP URLs
+return 404. Neither mutation adds authentication. Focused tests:
+`node --import tsx --test tests/gp-management.test.ts`.
+
 The GP result form selects racer, character, kart, race, and finishing position. A
 successful save moves to the next race when one exists and shows a toast. Saving the final race keeps it selected. The form accepts only integer finishes from 1–24, prevents duplicate submissions, and retains selections on errors. `EditTrackButton`
 offers a three-lap track or separate start/end tracks for a transition.
@@ -293,8 +302,8 @@ Track detail pages count races by end track (including transitions), using the `
   are not completed GPs. `src/lib/grand-prix.ts` owns the shared race completion predicate;
   `src/routes/home-data.ts` owns the homepage GP completion check. Previous GP podium
   rows show red points gaps to the racer immediately above, including zero for ties.
-- GP creation currently assumes two preceding GPs exist; an empty backend is not a
-  fully supported starting state. Use the snapshot for realistic local workflows.
+- GP creation also supports fewer than two preceding GPs, including after deletion.
+  Use the snapshot for realistic local workflows.
 - `races.updateTrack` derives `transition` from unequal start/end IDs. Three-lap races
   use the same track ID for both ends.
 - `results.update` validates integer finishes from 1–24, race/GP ownership, participant
@@ -356,8 +365,8 @@ and existing layouts as the starting point; a redesign should be explicitly scop
 - Buttons support default/destructive/outline/secondary/ghost/link variants and
   default/sm/lg/xl/icon sizes. The existing **secondary** variant is the bright
   `bg-lapita` action style; do not infer its appearance from the name alone.
-- Respect dark mode through `mode-watcher` and semantic tokens. Imported theme
-  controls in the navbar are not currently rendered; do not claim a visible toggle.
+- Respect dark mode through `mode-watcher` and semantic tokens. The navbar has a sun/moon
+  button beside search that toggles light/dark mode and persists the selection.
 
 ### Data visuals, assets, and interaction
 
@@ -479,12 +488,10 @@ These are observed implementation limitations, not behaviors to copy into new co
 - An unreachable Convex backend or failed reference query can leave the initial
   bouncing-logo gate waiting. Check backend reachability, URL, dev proxy, and data.
 - Several views assume populated arrays and related records. Track Stats accesses
-  the first two player averages; GP creation assumes two prior GPs. Include missing/empty data when working on these paths.
+  the first two player averages; Include missing/empty data when working on these paths.
 - `src/convex/migrations.ts` contains legacy fields/indexes absent from the current
   schema and destructive replacement/recalculation operations. Do not run it as a
   setup shortcut or assume its types describe the current model.
-- GP creation uses asynchronous inserts inside `forEach` callbacks. Review completion
-  and consistency carefully if changing that mutation.
 - The final `@theme` block in `src/app.css` contains literal `hsl(...)` placeholders,
   including another primary declaration. Treat these as incomplete CSS, not usable
   token values; inspect computed styles when touching the theme.
