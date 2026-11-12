@@ -206,7 +206,7 @@ in the Grand Prix stats table. Recorded finishes use actual points; remaining ra
 probabilities and assigned points for the unoccupied finishing places. Equal rounded probabilities
 use unrounded model weight, lower track average, lower recent-five average, lower best finish,
 then higher race count. Exact ties use stable racer ID order, so every predicted place receives
-whole-number points; missing probability history shows a dash. Projections
+whole-number points; unavailable probability data shows a dash. Projections
 update from live result/stat queries and equal actual scores once all finishes are recorded.
 The xPoints tab uses race rows and participant columns like Results. Each cell shows
 only a signed actual-minus-expected points gap on scaled green/yellow/red cell backgrounds (+3 green, +5 dark green; mirrored reds below expected,
@@ -228,7 +228,13 @@ Ongoing stats show current/projected points, maximum possible points across the 
 scoring system, and estimated GP win chance. All columns sort the shared racer rows; the default is ongoing points descending. Unavailable forecasts stay last in either sort direction.
 `gp-outlook.ts` samples 5,000 weighted remaining group finish orders with a repeatable
 seed, keeping recorded results and their occupied places fixed. Races are independent and
-outside-group finishers are not modeled. Missing track probabilities leave chances unavailable;
+outside-group finishers are not modeled. `results.stats` fills missing per-track racer history
+with their recency-weighted overall valid finishes (including transitions), using the same
+GP cutoff and deleted-GP exclusions. Racers with no valid history use a neutral average of
+12.5 (the midpoint of places 1–24). Track-specific history always takes precedence; raw track
+stats retain only real track results. The fallback feeds race chances, xPoints comparisons,
+and both starting/ongoing GP forecasts. Focused regression check:
+`node --import tsx tests/forecast-history.test.ts`. Unavailable query data still leaves chances unavailable;
 completed GPs use exact competition ranks, including tied wins/podiums. Min/max limits are
 per-player bounds, not outcomes every racer can achieve together. Focused tests:
 

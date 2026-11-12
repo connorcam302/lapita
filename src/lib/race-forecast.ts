@@ -55,3 +55,23 @@ export function buildTrackForecastStats<UserId extends string>(
 		bestResult: finishes.reduce((best, finish) => Math.min(best, finish), 24)
 	}));
 }
+
+/** Fill track-history gaps without excluding racers from the probability model. */
+export function fillTrackForecastStats<UserId extends string>(
+	users: readonly UserId[],
+	trackStats: ReturnType<typeof buildTrackForecastStats<UserId>>,
+	overallStats: ReturnType<typeof buildTrackForecastStats<UserId>>
+) {
+	return users.map(
+		(userId) =>
+			trackStats.find((stat) => stat.userId === userId) ??
+			overallStats.find((stat) => stat.userId === userId) ?? {
+				userId,
+				avg: 12.5,
+				weightedAvg: 12.5,
+				count: 0,
+				lastFiveResults: [],
+				bestResult: 12.5
+			}
+	);
+}

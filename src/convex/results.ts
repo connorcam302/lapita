@@ -1,7 +1,7 @@
 import { activeGpRows } from './gp_visibility';
 import { ConvexError, v } from 'convex/values';
 import { isValidFinishPosition } from '../lib/grand-prix';
-import { buildTrackForecastStats } from '../lib/race-forecast';
+import { buildTrackForecastStats, fillTrackForecastStats } from '../lib/race-forecast';
 import { mutation, query } from './_generated/server';
 import { placementToPoints, calculateRaceWinChance } from '$lib/utils';
 
@@ -218,18 +218,56 @@ export const stats = query({
 			})
 		);
 
-		const averages = resultsByTrack.map((track) => {
-			const trackStats = buildTrackForecastStats(track.results);
-			return {
-				trackId: track.track,
-				stats: trackStats,
-				chances: calculateRaceWinChance(
-					trackStats.map((stat) => {
-						return { ...stat, avg: stat.weightedAvg, trackId: track.track };
-					})
-				)[0]
-			};
-		});
+		const trackStatsByTrack = resultsByTrack.map((track) => ({
+			trackId: track.track,
+			stats: buildTrackForecastStats(track.results)
+		}));
+		const missingUsers = users.filter((userId) =>
+			trackStatsByTrack.some((track) => !track.stats.some((stat) => stat.userId === userId))
+		);
+		// Read other tracks only for racers who need a fallback. Apply the same historical
+		// cutoff as track stats so starting forecasts cannot see this GP or later results.
+		const overallHistory = await Promise.all(
+			missingUsers.map(async (userId) => {
+				const results = await ctx.db
+					.query('results')
+					.withIndex('userId', (q) => q.eq('userId', userId))
+					.collect();
+				return Promise.all(
+					results
+						.filter((result) => isValidFinishPosition(result.position))
+						.map(async (result) => {
+							const race = await ctx.db.get(result.raceId);
+							if (!race) return [];
+							const gp = await ctx.db.get(race.grandPrixId);
+							if (!gp || gp.deletedAt !== undefined || (cutoff && gp.order >= cutoff.order))
+								return [];
+							return [
+								{
+									userId,
+									position: result.position,
+									grandPrixOrder: gp.order,
+									raceOrder: race.order,
+									createdAt: result._creationTime,
+									id: result._id
+								}
+							];
+						})
+				);
+			})
+		);
+		const overallStats = buildTrackForecastStats(overallHistory.flat(2));
+		const averages = trackStatsByTrack.map(({ trackId, stats: trackStats }) => ({
+			trackId,
+			stats: trackStats,
+			chances: calculateRaceWinChance(
+				fillTrackForecastStats(users, trackStats, overallStats).map((stat) => ({
+					...stat,
+					avg: stat.weightedAvg,
+					trackId
+				}))
+			)[0]
+		}));
 		return averages;
 	}
 });
