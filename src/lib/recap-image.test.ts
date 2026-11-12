@@ -105,3 +105,47 @@ test('copy requests clipboard access synchronously during the click, before prom
 	assert.equal(requested, true);
 	await task;
 });
+
+test('recap PNG renders most-used pairs, ties and missing choices within the image', async () => {
+	const { createCanvas } = await import('@napi-rs/canvas');
+	const { buildRecap } = await import('./gp-recap');
+	const { buildGpComboFit } = await import('./gp-combo-fit');
+	const { renderRecapImage, recapImageSize } = await import('./recap-image');
+	const races = ['bike', 'sled'].map((kartId, order) => ({
+		_id: `race${order}`,
+		order,
+		trackStartId: 'track',
+		trackEndId: 'track',
+		results: [
+			{ userId: 'a', position: 1, characterId: 'mario', kartId },
+			{ userId: 'b', position: 2 }
+		]
+	}));
+	const recap = buildRecap(['a', 'b'], races);
+	const comboRatings = buildGpComboFit(['a', 'b'], races, {
+		tracks: [{ _id: 'track', name: 'Peach Stadium' }],
+		characters: [{ _id: 'mario', name: 'Mario' }],
+		karts: [
+			{ _id: 'bike', name: 'Standard Bike' },
+			{ _id: 'sled', name: 'Stellar Sled' }
+		]
+	});
+	const canvas = createCanvas(1, 1);
+	const ctx = canvas.getContext('2d');
+	const drawn: { text: string; y: number }[] = [];
+	const original = ctx.fillText.bind(ctx);
+	ctx.fillText = (text, x, y) => {
+		drawn.push({ text, y });
+		original(text, x, y);
+	};
+	renderRecapImage(canvas as unknown as HTMLCanvasElement, 61, recap, (id) => id, {
+		comparisons: [],
+		startingPlayers: [],
+		comboRatings
+	});
+	const labels = drawn.map(({ text }) => text).join(' ');
+	assert.ok(labels.includes('Mario · Standard Bike / Stellar Sled (tied)'));
+	assert.ok(drawn.some(({ text }) => text === '—'));
+	assert.ok(drawn.every(({ y }) => y < canvas.height));
+	assert.deepEqual({ width: canvas.width, height: canvas.height }, recapImageSize(recap));
+});

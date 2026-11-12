@@ -7,6 +7,7 @@ export type RecapImageExtras = {
 	comboRatings: GpComboFit;
 };
 const emptyExtras: RecapImageExtras = { comparisons: [], startingPlayers: [], comboRatings: [] };
+const standingsRowHeight = 92;
 const colours = {
 	background: '#171717',
 	surface: '#262626',
@@ -26,7 +27,12 @@ const colours = {
 export function recapImageSize(recap: Recap) {
 	return {
 		width: 1200,
-		height: 210 + Math.ceil(recap.podium.length / 3) * 154 + 76 + recap.standings.length * 72 + 48
+		height:
+			210 +
+			Math.ceil(recap.podium.length / 3) * 154 +
+			76 +
+			recap.standings.length * standingsRowHeight +
+			48
 	};
 }
 
@@ -163,26 +169,38 @@ export function renderRecapImage(
 
 	text('Ratings /100', 1144, standingsTop + 36, 19, colours.muted, 500, 'right');
 	for (const [label, x] of [
-		['Racer', 118],
-		['Points', 440],
-		['Wins', 514],
-		['xPoints', 700],
-		['Win chance', 836],
-		['Kart', 930],
-		['Char.', 1022],
+		['Racer', 128],
+		['Points', 472],
+		['Wins', 548],
+		['xPoints', 710],
+		['Win chance', 846],
+		['Kart', 940],
+		['Char.', 1032],
 		['Combo', 1126]
 	] as const) {
 		text(label, x, tableTop - 16, 17, colours.muted, 500, label === 'Racer' ? 'left' : 'right');
 	}
 	rect(56, tableTop - 1, 1088, 1, colours.border);
 	for (const [index, racer] of recap.standings.entries()) {
-		const y = tableTop + index * 72;
-		rect(56, y, 1088, 72, index % 2 ? colours.alternate : colours.surface);
-		if (racer.rank <= 3) badge(racer.rank, 72, y + 20, 30);
-		else text(String(racer.rank), 87, y + 46, 22, colours.muted, 500, 'center');
-		fittedText(name(racer.userId), 118, y + 46, 236, 25);
-		text(String(racer.points), 440, y + 46, 28, colours.foreground, 700, 'right');
-		text(String(racer.wins), 514, y + 46, 23, colours.foreground, 400, 'right');
+		const y = tableTop + index * standingsRowHeight;
+		rect(56, y, 1088, standingsRowHeight, index % 2 ? colours.alternate : colours.surface);
+		if (racer.rank <= 3) badge(racer.rank, 72, y + (standingsRowHeight - 42) / 2, 42);
+		else {
+			ctx.textBaseline = 'middle';
+			text(String(racer.rank), 93, y + standingsRowHeight / 2, 30, colours.muted, 600, 'center');
+			ctx.textBaseline = 'alphabetic';
+		}
+		ctx.textBaseline = 'middle';
+		text(
+			String(racer.points),
+			472,
+			y + standingsRowHeight / 2,
+			28,
+			colours.foreground,
+			700,
+			'right'
+		);
+		text(String(racer.wins), 548, y + standingsRowHeight / 2, 23, colours.foreground, 400, 'right');
 		const comparison = extras.comparisons.find((row) => row.userId === racer.userId);
 		const difference = comparison?.difference;
 		const differenceText = difference == null ? '' : ` (${difference > 0 ? '+' : ''}${difference})`;
@@ -190,8 +208,8 @@ export function renderRecapImage(
 		const differenceWidth = ctx.measureText(differenceText).width;
 		text(
 			comparison?.expected == null ? '—' : String(comparison.expected),
-			700 - differenceWidth,
-			y + 46,
+			710 - differenceWidth,
+			y + standingsRowHeight / 2,
 			23,
 			colours.foreground,
 			400,
@@ -199,8 +217,8 @@ export function renderRecapImage(
 		);
 		text(
 			differenceText,
-			700,
-			y + 46,
+			710,
+			y + standingsRowHeight / 2,
 			19,
 			difference == null || difference === 0
 				? colours.muted
@@ -213,17 +231,72 @@ export function renderRecapImage(
 		const chance = extras.startingPlayers.find((row) => row.userId === racer.userId)?.winChance;
 		text(
 			chance == null ? '—' : `${chance.toFixed(1)}%`,
-			836,
-			y + 46,
+			846,
+			y + standingsRowHeight / 2,
 			23,
 			colours.foreground,
 			400,
 			'right'
 		);
 		const rating = extras.comboRatings.find((row) => row.userId === racer.userId);
-		text(rating?.kartScore?.toFixed(1) ?? '—', 930, y + 46, 23, colours.muted, 400, 'right');
-		text(rating?.characterScore?.toFixed(1) ?? '—', 1022, y + 46, 23, colours.muted, 400, 'right');
-		text(rating?.score?.toFixed(1) ?? '—', 1126, y + 46, 23, colours.yellow, 600, 'right');
+		const combos = rating?.mostUsed ?? [];
+		const characters = new Map<string, string[]>();
+		for (const combo of combos) {
+			const karts = characters.get(combo.characterName) ?? [];
+			karts.push(combo.kartName);
+			characters.set(combo.characterName, karts);
+		}
+		const comboText = combos.length
+			? [...characters]
+					.map(([character, karts]) => `${character} · ${karts.join(' / ')}`)
+					.join('   ·   ') + (combos.length > 1 ? ' (tied)' : '')
+			: '—';
+		ctx.textBaseline = 'alphabetic';
+		ctx.font = '400 18px Inter, sans-serif';
+		const lines: string[] = [];
+		let line = '';
+		for (const word of comboText.split(' ')) {
+			const next = line ? `${line} ${word}` : word;
+			if (line && ctx.measureText(next).width > 280) {
+				lines.push(line);
+				line = word;
+			} else line = next;
+		}
+		if (line) lines.push(line);
+		const nameY = lines.length > 1 ? 29 : 38;
+		fittedText(name(racer.userId), 128, y + nameY, 280, 25);
+		fittedText(lines[0], 128, y + nameY + 25, 280, 18, colours.muted, 400);
+		if (lines.length > 1)
+			fittedText(lines.slice(1).join(' '), 128, y + nameY + 47, 280, 18, colours.muted, 400);
+		ctx.textBaseline = 'middle';
+		text(
+			rating?.kartScore?.toFixed(1) ?? '—',
+			940,
+			y + standingsRowHeight / 2,
+			23,
+			colours.muted,
+			400,
+			'right'
+		);
+		text(
+			rating?.characterScore?.toFixed(1) ?? '—',
+			1032,
+			y + standingsRowHeight / 2,
+			23,
+			colours.muted,
+			400,
+			'right'
+		);
+		text(
+			rating?.score?.toFixed(1) ?? '—',
+			1126,
+			y + standingsRowHeight / 2,
+			23,
+			colours.yellow,
+			600,
+			'right'
+		);
+		ctx.textBaseline = 'alphabetic';
 	}
 
 	return canvas;

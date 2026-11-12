@@ -273,3 +273,23 @@ test('character rating uses average full-combo totals over all karts before norm
 		) < 1e-10
 	);
 });
+
+test('most-used combos count complete recorded pairs, including unrated tracks and ties', () => {
+	const [player] = buildGpComboFit(
+		['a'],
+		[
+			race(0),
+			race(1),
+			race(2, 'sled'),
+			race(3, 'sled', 'unknown'),
+			race(4, 'sled', 'road', null),
+			{ ...race(5), results: [{ userId: 'a', position: 1, characterId: 'mario' }] }
+		],
+		refs
+	);
+	assert.deepEqual(player.mostUsed, [
+		{ characterName: 'Mario', kartName: 'Standard Bike', races: 2 },
+		{ characterName: 'Mario', kartName: 'Stellar Sled', races: 2 }
+	]);
+	assert.deepEqual(buildGpComboFit(['b'], [race(0)], refs)[0].mostUsed, []);
+});

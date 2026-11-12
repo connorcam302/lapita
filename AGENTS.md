@@ -777,6 +777,12 @@ recorded sums under the existing completion rule, explicitly shows coverage, and
 comeback/lead-change highlights. Missing finishes are never represented as observed zeros. The recap no longer displays a
 leader-gap chart; its replacement rates actual character/kart choices by track coverage.
 
+The recap’s Combo ratings table includes each racer’s most-used character/kart pair and race
+count. All equally used pairs appear with a tied label; only valid recorded finishes with both
+choices count, including transitions and tracks without rating coverage. Missing choices stay unknown.
+The shared recap PNG renderer shows most-used combos beneath racer names without repeated
+labels or usage counts; shared characters are grouped and tied usage is marked. Compact 92px
+standings rows are also used when calculating social-image dimensions.
 The recap shows podium, standings, reconstructed comparisons and combo ratings. Highlights
 and their definitions are not displayed. Keep supporting copy short: forecast descriptions in table-header titles, essential missing-data notices, and optional rating-method details. No explanatory paragraph under standings.
 The calculation helper retains tested comeback and lead-change data for other consumers.

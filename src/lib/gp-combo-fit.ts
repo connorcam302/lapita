@@ -274,6 +274,23 @@ export function buildGpComboFit(
 			return known.length ? known.reduce((sum, value) => sum + value, 0) / known.length : null;
 		};
 		const rated = rows.filter((row) => row.score !== null);
+		const usage = new Map<string, { characterName: string; kartName: string; races: number }>();
+		for (const row of rows) {
+			if (!row.choice) continue;
+			const previous = usage.get(row.choice);
+			usage.set(row.choice, {
+				characterName: row.characterName ?? 'Unknown character',
+				kartName: row.kartName ?? 'Unknown kart',
+				races: (previous?.races ?? 0) + 1
+			});
+		}
+		const mostRaces = Math.max(0, ...[...usage.values()].map((combo) => combo.races));
+		const mostUsed = [...usage.values()]
+			.filter((combo) => combo.races === mostRaces)
+			.sort(
+				(a, b) =>
+					a.characterName.localeCompare(b.characterName) || a.kartName.localeCompare(b.kartName)
+			);
 		const stints: {
 			choice: string | null;
 			characterName?: string;
@@ -307,6 +324,7 @@ export function buildGpComboFit(
 		}
 		return {
 			userId,
+			mostUsed,
 			characterScore: average(rows.map((row) => row.characterScore)),
 			kartScore: average(rows.map((row) => row.kartScore)),
 			rows,

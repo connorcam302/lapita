@@ -21,7 +21,10 @@
 			>
 			<Table.Header
 				><Table.Row>
-					<Table.Head>Racer</Table.Head><Table.Head class="text-right">Kart /100</Table.Head>
+					<Table.Head>Racer</Table.Head>
+					<Table.Head>Most-used combo</Table.Head><Table.Head class="text-right"
+						>Kart /100</Table.Head
+					>
 					<Table.Head class="text-right">Character /100</Table.Head><Table.Head class="text-right"
 						>Combined /100</Table.Head
 					>
@@ -30,6 +33,19 @@
 			<Table.Body
 				>{#each sorted as racer (racer.userId)}<Table.Row>
 						<Table.Cell class="font-medium">{name(racer.userId)}</Table.Cell>
+						<Table.Cell>
+							{#each racer.mostUsed as combo}
+								<div>
+									{combo.characterName} / {combo.kartName}
+									<span class="text-muted-foreground text-xs"
+										>· {combo.races}
+										{combo.races === 1 ? 'race' : 'races'}{racer.mostUsed.length > 1
+											? ' · tied'
+											: ''}</span
+									>
+								</div>
+							{:else}—{/each}
+						</Table.Cell>
 						<Table.Cell class="text-right tabular-nums"
 							>{racer.kartScore?.toFixed(1) ?? '—'}</Table.Cell
 						>
