@@ -55,3 +55,9 @@ test('empty, single-race, and missing-current GP track contexts do not invent tr
 		current: undefined
 	});
 });
+
+test('manual completion ends a nonempty GP without inventing completed races', () => {
+	assert.equal(isComplete({ raceCount: 16, completedRaces: 2, completedAt: 1 }), true);
+	assert.equal(isComplete({ raceCount: 16, completedRaces: 2 }), false);
+	assert.equal(isComplete({ raceCount: 0, completedRaces: 0, completedAt: 1 }), false);
+});

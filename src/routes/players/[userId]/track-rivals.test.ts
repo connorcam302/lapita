@@ -36,6 +36,8 @@ test('leaders see their margin over the best other racer, not themselves', () =>
 	assert.equal(row.rank, 1);
 	assert.equal(row.gap, 0);
 	assert.equal(row.margin, 0.5);
+	assert.equal(row.signedGap, -0.5);
+	assert.equal(row.leaders[0]?.userId, 'player');
 	assert.equal(row.rival?.userId, 'rival');
 	assert.equal(row.status, 'leading');
 });
@@ -51,9 +53,19 @@ test('ties share competition ranks and report joint leads', () => {
 	const [leader] = comparePlayerTracks(input, player);
 	assert.equal(leader.rank, 1);
 	assert.equal(leader.margin, 0);
+	assert.equal(leader.signedGap, 0);
+	assert.deepEqual(
+		leader.leaders.map((racer) => racer.userId),
+		['player', 'tied']
+	);
 	const [third] = comparePlayerTracks(input, 'third' as Id<'users'>);
 	assert.equal(third.rank, 3);
 	assert.equal(third.gap, 1);
+	assert.equal(third.signedGap, 1);
+	assert.deepEqual(
+		third.leaders.map((racer) => racer.userId),
+		['player', 'tied']
+	);
 });
 
 test('chasing compares against the leader, using unrounded averages', () => {
@@ -80,6 +92,8 @@ test('unraced tracks and solo racers do not claim a competitive lead', () => {
 	assert.equal(unraced.status, 'unraced');
 	assert.equal(unraced.rank, null);
 	assert.equal(unraced.gap, null);
+	assert.equal(unraced.signedGap, null);
+	assert.equal(unraced.leaders[0]?.userId, 'rival');
 	assert.equal(unraced.rival?.average, 3);
 	const [solo] = comparePlayerTracks(
 		[
@@ -92,6 +106,7 @@ test('unraced tracks and solo racers do not claim a competitive lead', () => {
 	);
 	assert.equal(solo.status, 'solo');
 	assert.equal(solo.margin, null);
+	assert.equal(solo.signedGap, null);
 	assert.equal(solo.racerCount, 1);
 	assert.deepEqual(comparePlayerTracks([], player), []);
 });

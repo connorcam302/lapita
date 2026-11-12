@@ -1,48 +1,53 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { BarChart } from 'layerchart';
+	import { scaleBand } from 'd3-scale';
+	import * as Chart from '$lib/components/ui/chart/index.js';
 	import { convexStore } from '$lib/stores/states.svelte';
-	import { getTrackName, getTrackImage } from '$lib/utils';
+	import { getTrackName } from '$lib/utils';
 	import type { TrackSummary } from './player-data';
+
 	let { data }: { data: TrackSummary[] } = $props();
-	let order = $state('average');
-	const tracks = $derived(convexStore.allTracks ?? []);
-	const sorted = $derived(
-		[...data].sort((a, b) =>
-			order === 'recent'
-				? a.recentAverage - b.recentAverage
-				: order === 'races'
-					? b.positions.length - a.positions.length
-					: a.average - b.average
+	const chartData = $derived(
+		data.map((track) => ({
+			name: getTrackName(convexStore.allTracks ?? [], track.trackEndId),
+			average: track.average,
+			recent: track.recentAverage,
+			races: track.positions.length
+		}))
+	);
+	const maximumAverage = $derived(
+		Math.max(
+			2,
+			Math.ceil(Math.max(0, ...data.flatMap((track) => [track.average, track.recentAverage])) / 2) *
+				2
 		)
 	);
+	const trackInitials = (name: string) =>
+		name
+			.split(/\s+/)
+			.map((word) => word.replace(/[^\p{L}\p{N}]/gu, ''))
+			.filter(Boolean)
+			.map((word) => (/^[A-Z]{2,3}$/.test(word) ? word : word[0]))
+			.join('')
+			.toUpperCase();
+	const config = {
+		average: { label: 'All time', color: 'var(--foreground)' },
+		recent: { label: 'Last 10', color: 'var(--color-lapita)' }
+	} satisfies Chart.ChartConfig;
 </script>
 
-<section aria-labelledby="tracks-heading">
-	<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
-		<div>
-			<h2 id="tracks-heading" class="font-title text-lg">Track averages</h2>
-			<p class="text-muted-foreground mt-2 text-sm">
-				Lower is better. Tracks are grouped by the finish track.
-			</p>
-		</div>
-		<label class="flex items-center gap-2 text-sm"
-			>Sort by
-			<select
-				bind:value={order}
-				class="bg-background border-input focus-visible:ring-ring h-9 rounded-md border px-3 focus-visible:ring-2"
-			>
-				<option value="average">All-time average</option>
-				<option value="recent">Last 10 average</option>
-				<option value="races">Most raced</option>
-			</select>
-		</label>
-	</div>
-	<div class="text-muted-foreground mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+<section class="bg-card min-w-0 rounded-md border p-4 sm:p-6" aria-labelledby="tracks-heading">
+	<h2 id="tracks-heading" class="font-title text-lg">Track averages</h2>
+	<p class="text-muted-foreground mt-2 text-sm">
+		All-time and last-10 average finishes. Lower is better; recent averages use up to 10 races.
+		Scroll sideways to compare tracks.
+	</p>
+	<div class="text-muted-foreground my-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
 		<span class="flex items-center gap-2"
 			><span class="bg-foreground h-2 w-5 rounded-xs"></span>All time</span
 		>
 		<span class="flex items-center gap-2"
-			><span class="bg-lapita h-2 w-5 rounded-xs"></span>Last 10, or available races</span
+			><span class="bg-lapita h-2 w-5 rounded-xs"></span>Last 10</span
 		>
 	</div>
 	{#if !data.length}
@@ -50,53 +55,52 @@
 			Track averages appear after the first recorded finish.
 		</p>
 	{:else}
-		<div class="grid gap-x-10 md:grid-cols-2">
-			{#each sorted as track (track.trackEndId)}
-				<a
-					href={resolve(`/track-stats?track=${track.trackEndId}`)}
-					class="hover:bg-muted focus-visible:ring-ring grid grid-cols-[2.5rem_1fr] items-center gap-3 rounded-sm border-b py-4 focus-visible:ring-2"
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard focus enables arrow-key scrolling.) -->
+		<div
+			class="focus-visible:ring-ring overflow-x-auto rounded-sm focus-visible:ring-2"
+			role="region"
+			aria-label="Track averages chart, scroll horizontally"
+			tabindex="0"
+		>
+			<Chart.Container
+				{config}
+				class="aspect-auto h-[300px]"
+				style={`width: ${Math.max(360, data.length * 48 + 60)}px`}
+				aria-label="All-time and last-10 average finishes by track. Values are also available in the table below."
+			>
+				<BarChart
+					data={chartData}
+					x="name"
+					orientation="vertical"
+					padding={{ left: 36, right: 16, top: 12, bottom: 36 }}
+					yDomain={[0, maximumAverage]}
+					xScale={scaleBand().padding(0.35)}
+					x1Scale={scaleBand().paddingInner(0.15)}
+					series={[
+						{ key: 'average', label: config.average.label, color: config.average.color },
+						{ key: 'recent', label: config.recent.label, color: config.recent.color }
+					]}
+					seriesLayout="group"
+					axis={true}
+					rule={false}
+					props={{
+						xAxis: { format: (value) => trackInitials(String(value)) },
+						yAxis: { ticks: 6 },
+						bars: { stroke: 'none', radius: 3 }
+					}}
 				>
-					<img
-						src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
-						alt=""
-						loading="lazy"
-						class="size-10 object-contain"
-					/>
-					<div class="min-w-0">
-						<div class="mb-2 flex items-baseline justify-between gap-2">
-							<span class="text-sm font-medium">{getTrackName(tracks, track.trackEndId)}</span>
-							<span class="text-muted-foreground shrink-0 text-xs"
-								>{track.positions.length} races</span
-							>
-						</div>
-						<div
-							class="grid grid-cols-[1fr_2.5rem] items-center gap-x-3 gap-y-1 text-xs tabular-nums"
+					{#snippet tooltip()}
+						<Chart.Tooltip
+							labelFormatter={(_, payload) =>
+								`${payload[0]?.payload?.name} · ${payload[0]?.payload?.races} races`}
 						>
-							<div class="bg-muted h-2 rounded-xs">
-								<div
-									class="bg-foreground h-full rounded-xs"
-									style:width={`${(track.average / 24) * 100}%`}
-								></div>
-							</div>
-							<span class="text-right"
-								><span class="sr-only">All time: </span>{track.average.toFixed(2)}</span
-							>
-							<div class="bg-muted h-2 rounded-xs">
-								<div
-									class="bg-lapita h-full rounded-xs"
-									style:width={`${(track.recentAverage / 24) * 100}%`}
-								></div>
-							</div>
-							<span class="text-right"
-								><span class="sr-only">Recent: </span>{track.recentAverage.toFixed(2)}</span
-							>
-						</div>
-					</div>
-				</a>
-			{/each}
+							{#snippet formatter({ value, name })}<span class="text-muted-foreground">{name}</span
+								><span class="ml-auto font-medium tabular-nums">{Number(value).toFixed(2)}</span
+								>{/snippet}
+						</Chart.Tooltip>
+					{/snippet}
+				</BarChart>
+			</Chart.Container>
 		</div>
-		<p class="text-muted-foreground mt-5 text-xs">
-			Bars use the same 1–24 finishing-position scale. Select a track to explore its stats.
-		</p>
 	{/if}
 </section>

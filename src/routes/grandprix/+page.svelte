@@ -58,7 +58,6 @@
 <main class="archive mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
 	<header class="mb-7">
 		<h1 class="font-title text-2xl sm:text-3xl">All Grand Prix</h1>
-		<p class="text-muted-foreground mt-3">Find a Grand Prix by number, player, track or date.</p>
 	</header>
 	<form onsubmit={apply} class="bg-card rounded-md border p-4 sm:p-5">
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

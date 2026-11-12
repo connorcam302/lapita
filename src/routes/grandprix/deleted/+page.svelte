@@ -30,10 +30,6 @@
 
 <main class="mx-auto max-w-4xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
 	<h1 class="font-title text-2xl sm:text-3xl">Deleted Grand Prix</h1>
-	<p class="text-muted-foreground mt-3 text-sm">
-		Deleted Grand Prix keep their races, results, and standings. Restore one to include it in
-		history and statistics again.
-	</p>
 	{#if deleted.error}
 		<p class="mt-4 text-sm" role="alert">
 			Could not load deleted Grand Prix. Reload the page to try again.

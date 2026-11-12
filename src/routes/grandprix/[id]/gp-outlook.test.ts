@@ -143,3 +143,25 @@ test('starting forecasts need history even when every result is recorded', () =>
 		starting.players.every((player) => player.projected === null && player.winChance === null)
 	);
 });
+
+test('manual completion fixes outcomes to recorded points with no remaining forecasts', () => {
+	const outlook = calculateGpOutlook(participants, [race([1, 1, 2, null]), race()], [], true);
+	assert.equal(outlook.completedRaces, 0);
+	assert.equal(outlook.simulations, 0);
+	assert.deepEqual(
+		outlook.players.map((p) => [
+			p.points,
+			p.minimum,
+			p.maximum,
+			p.projected,
+			p.remaining,
+			p.winChance
+		]),
+		[
+			[15, 15, 15, 15, 0, 100],
+			[15, 15, 15, 15, 0, 100],
+			[12, 12, 12, 12, 0, 0],
+			[0, 0, 0, 0, 0, 0]
+		]
+	);
+});

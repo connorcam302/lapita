@@ -6,10 +6,11 @@ export type HistoryEntry = {
 	standings: Standing[];
 	raceCount: number;
 	completedRaces: number;
+	completedAt?: number;
 };
 
-export function isComplete(gp: Pick<HistoryEntry, 'raceCount' | 'completedRaces'>) {
-	return gp.raceCount > 0 && gp.completedRaces === gp.raceCount;
+export function isComplete(gp: Pick<HistoryEntry, 'raceCount' | 'completedRaces' | 'completedAt'>) {
+	return gp.raceCount > 0 && (gp.completedAt !== undefined || gp.completedRaces === gp.raceCount);
 }
 
 export function getRaceContext<T extends { _id: string; order: number }>(

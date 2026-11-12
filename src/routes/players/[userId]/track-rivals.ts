@@ -22,7 +22,20 @@ export function comparePlayerTracks(tracks: TrackStats, userId: Id<'users'>) {
 		const gap = player && leader ? player.average - leader.average : null;
 		const margin = player && rival ? rival.average - player.average : null;
 		const status = !player ? 'unraced' : !rival ? 'solo' : rank === 1 ? 'leading' : 'chasing';
-		return { ...track, player, rival, rank, gap, margin, status, racerCount: racers.length };
+		const leaders = racers.filter((racer) => racer.average === leader?.average);
+		const signedGap = player && rival ? player.average - rival.average : null;
+		return {
+			...track,
+			player,
+			rival,
+			leaders,
+			rank,
+			gap,
+			margin,
+			signedGap,
+			status,
+			racerCount: racers.length
+		};
 	});
 }
 

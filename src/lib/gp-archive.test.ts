@@ -99,3 +99,10 @@ test('sorts the whole archive without changing the source', () => {
 	);
 	assert.deepEqual(filterArchive([], defaults, players), []);
 });
+
+test('manually completed GPs have winners from valid recorded results', () => {
+	const [entry] = buildArchive([{ ...gps[1], completedAt: 1 }], races, results, standings);
+	assert.equal(entry.status, 'complete');
+	assert.equal(entry.completedRaces, 0);
+	assert.deepEqual(entry.winnerIds, [alice]);
+});

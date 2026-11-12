@@ -3,7 +3,14 @@ import { test } from 'node:test';
 import type { MutationCtx } from '../src/convex/_generated/server';
 import type { Id } from '../src/convex/_generated/dataModel';
 import { activeGpRows } from '../src/convex/gp_visibility';
-import { addRacers, remove, restore, newGp } from '../src/convex/gps';
+import {
+	addRacers,
+	remove,
+	restore,
+	newGp,
+	setComplete,
+	getPlayerResults
+} from '../src/convex/gps';
 
 type Row = { _id: string; [key: string]: unknown };
 function fixture() {
@@ -44,7 +51,10 @@ function fixture() {
 							value = v;
 						}
 					});
-					return { collect: async () => rows[table].filter((row) => row[field] === value) };
+					return {
+						collect: async () => rows[table].filter((row) => row[field] === value),
+						unique: async () => rows[table].find((row) => row[field] === value) ?? null
+					};
 				}
 			};
 		},
@@ -237,4 +247,58 @@ test('new GP numbers remain reserved when the latest GP is deleted', async () =>
 		}
 	)._handler(ctx, { participants: [] });
 	assert.equal(newOrder, 13);
+});
+
+const completion = (ctx: MutationCtx, complete: boolean, grandPrixId = 'gp') =>
+	(
+		setComplete as unknown as {
+			_handler: (
+				ctx: MutationCtx,
+				args: { grandPrixId: Id<'grandPrix'>; complete: boolean }
+			) => Promise<void>;
+		}
+	)._handler(ctx, { grandPrixId: grandPrixId as Id<'grandPrix'>, complete });
+
+test('manual completion is reversible, idempotent and preserves race results', async () => {
+	const f = fixture();
+	const before = structuredClone(f.rows.results);
+	await completion(f.ctx, true);
+	const timestamp = f.find('gp')!.completedAt;
+	assert.equal(typeof timestamp, 'number');
+	await completion(f.ctx, true);
+	assert.equal(f.find('gp')!.completedAt, timestamp);
+	assert.deepEqual(f.rows.results, before);
+	await completion(f.ctx, false);
+	assert.equal(f.find('gp')!.completedAt, undefined);
+	await assert.rejects(completion(f.ctx, true, 'missing'), /unavailable/);
+	await f.del();
+	await assert.rejects(completion(f.ctx, true), /unavailable/);
+});
+
+test('player GP wins use recorded scores and completion rather than stored first places', async () => {
+	const f = fixture();
+	await f.add(['b']);
+	f.find('s1')!.points = 0;
+	const read = (userId: string) =>
+		(
+			getPlayerResults as unknown as {
+				_handler: (ctx: MutationCtx, args: { userId: Id<'users'> }) => Promise<{ won: boolean }[]>;
+			}
+		)._handler(f.ctx, { userId: userId as Id<'users'> });
+	assert.equal((await read('a'))[0].won, false);
+	await completion(f.ctx, true);
+	assert.equal((await read('a'))[0].won, true);
+	assert.equal((await read('b')).find((_, index) => index === 1)?.won, false);
+	await completion(f.ctx, false);
+	assert.equal((await read('a'))[0].won, false);
+});
+
+test('manual completion rejects a GP without races or participants', async () => {
+	for (const empty of ['races', 'participants']) {
+		const f = fixture();
+		if (empty === 'races') f.rows.races = [];
+		else f.find('gp')!.participants = [];
+		await assert.rejects(completion(f.ctx, true), /needs races and racers/);
+		assert.equal(f.writes, 0);
+	}
 });

@@ -65,10 +65,6 @@
 					<img src={`/tracks/icons/${track.img}.png`} alt="" class="size-16 object-contain" />
 					<h1 class="font-title text-2xl text-balance sm:text-3xl">{track.name}</h1>
 				</div>
-				<p class="text-muted-foreground text-sm">
-					Races finishing at {track.name}, including transitions. Only recorded positions from 1–24
-					contribute to performance stats.
-				</p>
 				<dl class="grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-5 sm:grid-cols-4">
 					{#each [['Races scheduled', detail.data.races.length], ['Races complete', detail.data.races.filter( (race) => hasAllResults(race.participants, race.results) ).length], ['Results recorded', stats.count], ['Avg recorded racers / race', format(stats.averageParticipants)], ['Average position', format(stats.average)], ['Best position', stats.best ?? '—'], ['Wins (1st place)', stats.wins], ['Podiums (top 3)', stats.podiums]] as [label, value] (label)}
 						<div>

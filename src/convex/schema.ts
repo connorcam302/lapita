@@ -23,6 +23,7 @@ export default defineSchema({
 
 	grandPrix: defineTable({
 		deletedAt: v.optional(v.number()),
+		completedAt: v.optional(v.number()),
 		order: v.number(),
 		participants: v.array(v.id('users'))
 	}).index('order', ['order']),

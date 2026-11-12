@@ -1,6 +1,5 @@
 import type { Doc, Id } from '../convex/_generated/dataModel';
-import { hasAllResults } from './grand-prix';
-import { placementToPoints } from './utils';
+import { hasAllResults, summarizeGrandPrix } from './grand-prix';
 
 type Entry = {
 	userId: Id<'users'>;
@@ -13,7 +12,7 @@ type Entry = {
 
 export function calculateRecords(
 	users: Pick<Doc<'users'>, '_id' | 'name'>[],
-	gps: Pick<Doc<'grandPrix'>, '_id' | 'order' | 'participants'>[],
+	gps: Pick<Doc<'grandPrix'>, '_id' | 'order' | 'participants' | 'completedAt'>[],
 	races: Pick<Doc<'races'>, '_id' | 'grandPrixId' | 'order'>[],
 	results: Pick<Doc<'results'>, 'raceId' | 'userId' | 'position'>[]
 ) {
@@ -50,12 +49,14 @@ export function calculateRecords(
 	let completedGps = 0;
 	for (const gp of [...gps].sort((a, b) => a.order - b.order || a._id.localeCompare(b._id))) {
 		const gpRaces = [...(racesByGp.get(gp._id) ?? [])].sort((a, b) => a.order - b.order);
-		let complete = gpRaces.length > 0;
-		const scores = new Map(gp.participants.map((id) => [id, 0]));
+		const { complete, scores } = summarizeGrandPrix(
+			gp.participants,
+			gpRaces.map((race) => ({ results: resultsByRace.get(race._id) ?? [] })),
+			gp.completedAt
+		);
 		for (const race of gpRaces) {
 			const entries = resultsByRace.get(race._id) ?? [];
 			if (!hasAllResults(gp.participants, entries)) {
-				complete = false;
 				// An unfinished race breaks a confirmed winning streak.
 				for (const id of gp.participants) {
 					const player = players.get(id);
@@ -66,7 +67,6 @@ export function calculateRecords(
 			completedRaces++;
 			for (const id of gp.participants) {
 				const position = entries.find((entry) => entry.userId === id)!.position!;
-				scores.set(id, (scores.get(id) ?? 0) + placementToPoints[position]);
 				const player = players.get(id);
 				if (!player) continue;
 				player.raceCount++;

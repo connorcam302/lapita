@@ -43,9 +43,6 @@
 <main class="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
 	<header class="border-b pb-7">
 		<h1 class="font-title text-2xl sm:text-3xl">Track stats</h1>
-		<p class="text-muted-foreground mt-3 max-w-2xl">
-			Compare the tracks and see who leads on each course.
-		</p>
 		{#if tableData}
 			<p class="text-muted-foreground mt-4 text-sm tabular-nums">
 				{tableData.length}

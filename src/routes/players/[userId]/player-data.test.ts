@@ -56,6 +56,7 @@ test('combination GP stats use the most-used setup, with no NaN for unused GP at
 				grandPrixId: 'gp' as Id<'grandPrix'>,
 				order: 1,
 				position: 1,
+				won: true,
 				points: 100
 			}
 		]
@@ -84,10 +85,27 @@ test('tied GP combination usage preserves existing query order, independent of r
 				grandPrixId: 'gp' as Id<'grandPrix'>,
 				order: 1,
 				position: 1,
+				won: true,
 				points: 100
 			}
 		]
 	);
 	assert.equal(profile.combinations.find((combo) => combo.kartId === 'kart')?.gpWins, 1);
 	assert.equal(profile.combinations.find((combo) => combo.kartId === 'other')?.gpWins, 0);
+});
+
+test('leading an unfinished GP does not award a combination win', () => {
+	const profile = summarizePlayer(
+		[race(1, 1)],
+		[
+			{
+				grandPrixId: 'gp' as Id<'grandPrix'>,
+				order: 1,
+				position: 1,
+				points: 15,
+				won: false
+			}
+		]
+	);
+	assert.equal(profile.combinations[0].gpWins, 0);
 });

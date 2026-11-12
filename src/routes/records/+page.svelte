@@ -22,7 +22,7 @@
 						key: 'gpWins',
 						title: 'Most GP wins',
 						description:
-							'Overall first places in completed Grand Prix. Ties count for each winner.',
+							'Overall first places in completed Grand Prix, including manual completion. Ties count for each winner.',
 						unit: 'GP wins',
 						rows: records.data.gpWins
 					},
@@ -72,7 +72,6 @@
 <main class="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
 	<header class="border-b pb-7">
 		<h1 class="font-title text-2xl sm:text-3xl">Records</h1>
-		<p class="text-muted-foreground mt-3 max-w-2xl">The best of Lapita, across every Grand Prix.</p>
 		{#if records.data}
 			<p class="text-muted-foreground mt-4 text-sm tabular-nums">
 				{records.data.completedRaces.toLocaleString()} completed races · {records.data.completedGps.toLocaleString()}
@@ -93,7 +92,7 @@
 		</section>
 	{:else if !records.data}
 		<p class="text-muted-foreground py-12" role="status">Loading records…</p>
-	{:else if records.data.completedRaces === 0}
+	{:else if records.data.completedRaces === 0 && records.data.completedGps === 0}
 		<section class="py-12">
 			<h2 class="font-title text-xl">The records start here</h2>
 			<p class="text-muted-foreground mt-3">
@@ -118,7 +117,7 @@
 					<p class="text-muted-foreground mt-2 min-h-10 max-w-prose text-sm">
 						{category.description}
 					</p>
-					<div class="mt-4 overflow-x-auto rounded-md border">
+					<div class="bg-card mt-4 overflow-x-auto rounded-md border">
 						<Table.Root>
 							<Table.Header
 								><Table.Row

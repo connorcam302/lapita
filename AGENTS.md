@@ -124,18 +124,19 @@ functions are not the normal seed path.
 
 ## Routes and interacting with the app
 
-| Route                | Purpose and main files                                                                                                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                  | Grand Prix overview: latest GP, standings, monthly history in batches of 12; `+page.svelte`, `home-data.ts`                                                                 |
-| `/grandprix`         | All Grand Prix archive: search by GP number/player; combine participant, winner, track, completion status and inclusive dates; sort newest/oldest. Filters live in the URL. |
-| `/grandprix/deleted` | Unlisted recovery page for deleted GPs; open by URL to restore races, results, and standings. Excluded from navigation/search and marked noindex.                           |
-| `/grandprix/[id]`    | Race selection, result entry, standings, history, win-chance and combo charts; route page and `RaceWinChanceChart.svelte`                                                   |
-| `/players/[userId]`  | Player summary, track averages, character/kart usage, GP/race history; route page and `TrackBars.svelte`                                                                    |
-| `/tracks/[trackId]`  | Track summary, player performance, finishing distribution, combination stats, and race history with expandable results; `tracks.detail`, `$lib/track-stats.ts`              |
-| `/track-stats`       | Sortable track statistics; route page, `DataTable.svelte`, `columns.ts`, `SortableHeader.svelte`                                                                            |
-| `/stats/calculator`  | Choose character/kart; compare eight stats and their averages in a table/chart                                                                                              |
-| `/records`           | All-time player rankings for wins, podiums, GP scores, average finishes and streaks; `src/lib/records.ts`, `src/convex/records.ts`                                          |
-| `/test`              | Existing experimental stats/chart page; not a substitute for automated tests                                                                                                |
+| Route                | Purpose and main files                                                                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                  | Grand Prix overview: latest GP, standings, monthly history in batches of 12; `+page.svelte`, `home-data.ts`                                                                             |
+| `/grandprix`         | All Grand Prix archive: search by GP number/player; combine participant, winner, track, completion status and inclusive dates; sort newest/oldest. Filters live in the URL.             |
+| `/grandprix/deleted` | Unlisted recovery page for deleted GPs; open by URL to restore races, results, and standings. Excluded from navigation/search and marked noindex.                                       |
+| `/grandprix/[id]`    | Race selection, result entry, standings, history, win-chance and combo charts; route page and `RaceWinChanceChart.svelte`                                                               |
+| `/players/[userId]`  | Player summary, track averages, character/kart usage, GP/race history; route page and `TrackBars.svelte`                                                                                |
+| `/tracks/[trackId]`  | Track summary, player performance, finishing distribution, combination stats, and race history with expandable results; `tracks.detail`, `$lib/track-stats.ts`                          |
+| `/track-stats`       | Sortable track statistics; route page, `DataTable.svelte`, `columns.ts`, `SortableHeader.svelte`                                                                                        |
+| `/stats`             | All-time dashboard: cumulative GP/race wins with player toggles, sortable player comparison, win rates, average points per race, average finishes, combo usage and monthly GP activity. |
+| `/stats/calculator`  | Choose character/kart; compare eight stats and their averages in a table/chart                                                                                                          |
+| `/records`           | All-time player rankings for wins, podiums, GP scores, average finishes and streaks; `src/lib/records.ts`, `src/convex/records.ts`                                                      |
+| `/test`              | Existing experimental stats/chart page; not a substitute for automated tests                                                                                                            |
 
 Dynamic URL segments are Convex document IDs, not GP order numbers or player names.
 Use existing data to obtain IDs; do not invent them.
@@ -229,7 +230,13 @@ in browser local storage. The calculator also reads the character/kart
 selection keys. These IDs may become stale after switching or resetting databases;
 validate saved selections against loaded records when changing this behavior.
 
-Player profiles use Overview, Tracks, Track rivals, Combinations, and History tabs. The overview keeps the
+Player profiles use Overview, Tracks, Combinations, and History tabs. Tracks combines a horizontally scrollable grouped vertical
+bar chart of all-time/last-10 averages with the Track rivals table. The compact chart uses
+slim paired bars and track initials on its axis; tooltips retain full track names. Rival columns sort on
+header clicks (including last-five average), with no sort dropdown. Ranks omit the racer-count
+denominator; columns run Track, Races, Avg. finish, Last 10 avg., Last 5, Rank, Gap to lead.
+Last-five finish badges run newest first; the table omits the current-leader column. Signed gaps are green/negative when leading the best other racer,
+red/positive when chasing the leader, zero for ties, and unavailable for solo/unraced tracks. The overview keeps the
 most-used character/kart art, summary record, best/toughest tracks, and recent GP/race results.
 Personal records reuse `records.get` for completed-GP best score, longest winning streak,
 podium finishes, and GP wins, with overall ranks and a link to the best-score GP. Their
@@ -237,16 +244,17 @@ loading/error states are independent of the profile; these records exclude unfin
 and GPs using the same rules as the Records page.
 Track comparisons show full names, sample sizes, and paired all-time/recent averages; recent
 averages use up to ten available finishes, ordered by GP order then result creation time.
-`TrackRivals.svelte` loads `races.getStats` when its tab mounts, matching the Track Stats
+`TrackRivals.svelte` loads `races.getStats` when Tracks mounts, matching the Track Stats
 all-time end-track averages. `track-rivals.ts` computes competition ranks, gaps to the leader,
 and leading margins over the best other racer using unrounded averages. Leading includes
 shared firsts but excludes tracks where the player is the only racer. Filters distinguish
-leading, within 0.50 average positions of the lead, chasing, solo, and unraced tracks. Positive
+leading, within 0.50 average positions of the lead, chasing, and solo tracks. Unraced tracks
+are excluded from the table and summary. Positive
 gaps below 0.01 display as `<0.01`; links open the track detail or rival profile. Test with
 `node --import tsx 'src/routes/players/[userId]/track-rivals.test.ts'`.
 `src/routes/players/[userId]/player-data.ts` filters placements to integers 1–24 and owns profile
 summaries. Track summaries group by end track; combination best/worst tracks retain start-track
-grouping. GP first places and combination GP points include current standings; each GP is
+grouping. GP wins use the shared completed-GP rules; combination GP points include current standings; each GP is
 credited to its most-used combination. History loads 20 entries at a time, and race links select
 the corresponding race with `?track=<raceId>`. Empty profiles and missing combination choices
 are supported. Run focused calculation tests with:
@@ -291,16 +299,16 @@ Track detail pages count races by end track (including transitions), using the `
 
 `src/convex/schema.ts` defines eight tables:
 
-| Table                | Fields and relationships (besides Convex metadata)                             |
-| -------------------- | ------------------------------------------------------------------------------ |
-| `users`              | `name`                                                                         |
-| `tracks`             | `name`, `img`                                                                  |
-| `characters`         | Optional `name`, optional `img`                                                |
-| `karts`              | `name`, `img`                                                                  |
-| `grandPrix`          | Numeric `order`, array of participant user IDs, optional `deletedAt` timestamp |
-| `grandPrixStandings` | GP ID, user ID, points                                                         |
-| `races`              | Numeric `order`, GP ID, start/end track IDs, `transition`                      |
-| `results`            | Race ID, user ID, optional/null position, optional character/kart IDs          |
+| Table                | Fields and relationships (besides Convex metadata)                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `users`              | `name`                                                                                            |
+| `tracks`             | `name`, `img`                                                                                     |
+| `characters`         | Optional `name`, optional `img`                                                                   |
+| `karts`              | `name`, `img`                                                                                     |
+| `grandPrix`          | Numeric `order`, array of participant user IDs, optional `deletedAt` and `completedAt` timestamps |
+| `grandPrixStandings` | GP ID, user ID, points                                                                            |
+| `races`              | Numeric `order`, GP ID, start/end track IDs, `transition`                                         |
+| `results`            | Race ID, user ID, optional/null position, optional character/kart IDs                             |
 
 - `gps.newGp` selects up to 16 distinct tracks without replacement. `tracks.valid`
   excludes Rainbow Road. Tracks appearing once/twice in the preceding two GPs are
@@ -350,6 +358,9 @@ and existing layouts as the starting point; a redesign should be explicitly scop
 - `src/app.css` owns light/dark semantic tokens and Tailwind `@theme` mappings.
   Prefer `bg-background`, `text-foreground`, `bg-card`, `text-muted-foreground`,
   `border-border`, and other semantic utilities over new hard-coded neutral colors.
+- Use `bg-card` for boxed content, including bordered tables, summary tiles, and chart panels,
+  matching Track Stats. Card surfaces are light gray (`#f9fafb`) in light mode and
+  lighter charcoal (`#262626`) in dark mode; keep page backgrounds on `bg-background`.
 - Brand utility `lapita` is `oklch(0.861 0.1695 92.73)` (bright yellow). Light primary
   is amber `#f59e0b`; dark primary is yellow `#f5cc24`. Light surfaces are white/gray;
   dark background is `#171717`, with `#262626` cards and `#404040` borders.
@@ -441,7 +452,7 @@ bun run tsx --test src/lib/records.test.ts
 ```
 
 Records use completed participant races only; GP wins and best scores require a nonempty,
-fully completed GP. Scores are recomputed with `placementToPoints`, tied GP leaders each
+fully completed or manually completed GP. Scores are recomputed with `placementToPoints`, tied GP leaders each
 receive a win, and rankings use competition places. Average finish requires ten races.
 Winning streaks follow GP/race order across GPs entered; a loss or unfinished race breaks
 the streak. The live `records.get` query scans historical tables once and returns rankings;
@@ -521,9 +532,39 @@ any remaining limitation. Update this guide when the change invalidates its inst
 GPs, races, results and standings once to return the complete archive; filters apply before
 revealing rows in batches of 24, so older matches are always included. Revisit server-side
 pagination/aggregation if history approaches Convex read limits. Completion uses
-`hasAllResults` and requires a nonempty race list; winner filters include every tied first
+`hasAllResults` or the manual `completedAt` override and requires a nonempty race list; winner filters include every tied first
 place only for completed GPs. Track filtering matches either start or end of a transition.
 Dates use the viewer's local calendar and include both boundary days. The navbar Grand Prix
 link opens the archive; the home logo returns to the overview. Search and the homepage
 Previous Grand Prix section also link to the archive. Run calculation checks with
 `bun run tsx --test src/lib/gp-archive.test.ts`.
+
+### Manual GP completion and shared wins
+
+`grandPrix.completedAt` is an optional manual completion timestamp. The GP heading's
+Mark complete control confirms ending a GP using valid recorded points, with missing
+finishes worth zero; Undo manual completion clears the override. `gps.setComplete`
+rejects missing/deleted GPs and requires races and participants. Results stay editable,
+so later corrections can change winners. This does not fabricate results or complete
+individual races. Home/archive status and ongoing forecasts respect the override.
+`src/lib/grand-prix.ts` exports `summarizeGrandPrix`, shared by Records and player GP
+wins (including combination wins), and archive winner filters. Otherwise, GP wins
+require every participant's valid finish in every race; ties each earn a win. GP records
+include manually completed scores, while race records still require completed races.
+The player query returns `won` independently of the stored standing position for
+combination attribution; the player overview reads GP wins directly from `records.get`.
+
+The Stats page uses `records.stats` and `$lib/stats.ts` to aggregate active GP history on the
+server. Race counts, points, podiums, averages, distributions and combination uses require
+fully recorded participant races; results from outsiders and deleted GPs are excluded.
+GP wins follow `summarizeGrandPrix`, including manual completion and shared firsts. The
+wins-over-time chart shows cumulative totals by GP order, switches between GP wins and
+race wins, and allows players to be hidden. Rates and averages have no minimum sample.
+Charts include expandable data views; player comparison sorts by the selected metric.
+GP activity groups non-deleted GPs by UTC creation month, includes ongoing GPs and fills
+quiet months with zero. `$lib/gp-activity.ts` owns this aggregation; test with
+`bun run tsx --test src/lib/gp-activity.test.ts`.
+Focused tests: `bun run tsx --test src/lib/stats.test.ts`.
+
+Page headings omit introductory subheadings. Keep supporting chart explanations, summary totals,
+data notes, and loading/error recovery messages where they help users interpret the page.

@@ -1,3 +1,5 @@
+import { placementToPoints } from './utils';
+
 /** Only integer finishes in the game's 24-place field can earn points. */
 export function isValidFinishPosition(position: unknown): position is number {
 	return (
@@ -16,4 +18,31 @@ export function hasAllResults(
 			results.some((result) => result.userId === userId && isValidFinishPosition(result.position))
 		)
 	);
+}
+
+/** Manual completion ends the GP using recorded points; missing finishes earn zero. */
+export function summarizeGrandPrix<UserId extends string>(
+	participants: readonly UserId[],
+	races: readonly { results: readonly { userId: string; position?: number | null }[] }[],
+	completedAt?: number
+) {
+	const scores = new Map(participants.map((id) => [id, 0]));
+	for (const race of races) {
+		for (const id of participants) {
+			const position = race.results.find((result) => result.userId === id)?.position;
+			if (isValidFinishPosition(position)) {
+				scores.set(id, scores.get(id)! + placementToPoints[position]);
+			}
+		}
+	}
+	const complete =
+		participants.length > 0 &&
+		races.length > 0 &&
+		(completedAt !== undefined || races.every((race) => hasAllResults(participants, race.results)));
+	const highest = Math.max(...scores.values());
+	return {
+		scores,
+		complete,
+		winnerIds: complete ? participants.filter((id) => scores.get(id) === highest) : []
+	};
 }

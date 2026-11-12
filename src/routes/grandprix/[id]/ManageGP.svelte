@@ -13,6 +13,8 @@
 
 	let { grandPrix, players }: { grandPrix: Doc<'grandPrix'>; players: Doc<'users'>[] } = $props();
 	const client = useConvexClient();
+	let completing = $state(false);
+	let completeOpen = $state(false);
 	let adding = $state(false);
 	let deleting = $state(false);
 	let addOpen = $state(false);
@@ -44,6 +46,25 @@
 		}
 	}
 
+	async function setComplete() {
+		if (completing) return;
+		completing = true;
+		const complete = grandPrix.completedAt === undefined;
+		try {
+			await client.mutation(api.gps.setComplete, { grandPrixId: grandPrix._id, complete });
+			completeOpen = false;
+			toast.success(complete ? 'Grand Prix marked complete.' : 'Manual completion removed.');
+		} catch (error) {
+			toast.error(
+				error instanceof ConvexError
+					? String(error.data)
+					: 'Could not update completion. Try again.'
+			);
+		} finally {
+			completing = false;
+		}
+	}
+
 	async function deleteGP() {
 		if (deleting) return;
 		deleting = true;
@@ -63,7 +84,10 @@
 	<h1 class="font-title text-xl">Grand Prix {grandPrix.order}</h1>
 	<div class="flex flex-wrap gap-2">
 		<Sheet.Root bind:open={addOpen}>
-			<Sheet.Trigger class={buttonVariants({ variant: 'outline', size: 'sm' })} disabled={deleting}>
+			<Sheet.Trigger
+				class={buttonVariants({ variant: 'outline', size: 'sm' })}
+				disabled={deleting || completing}
+			>
 				Add racers
 			</Sheet.Trigger>
 			<Sheet.Content class="flex max-h-dvh flex-col">
@@ -71,7 +95,7 @@
 					<Sheet.Title>Add racers</Sheet.Title>
 					<Sheet.Description>
 						Racers start on zero points with blank entries for every race. Earlier results can be
-						filled in. All racers need a result for each race to count as complete.
+						filled in. Races count as complete when every racer has a result.
 					</Sheet.Description>
 				</Sheet.Header>
 				<div class="min-h-0 flex-1 overflow-y-auto px-4 py-2">
@@ -108,10 +132,56 @@
 				</Sheet.Footer>
 			</Sheet.Content>
 		</Sheet.Root>
+		<Dialog.Root bind:open={completeOpen}>
+			<Dialog.Trigger
+				class={buttonVariants({ variant: 'outline', size: 'sm' })}
+				disabled={adding || deleting || completing}
+			>
+				{grandPrix.completedAt !== undefined ? 'Undo manual completion' : 'Mark complete'}
+			</Dialog.Trigger>
+			<Dialog.Content
+				showCloseButton={!completing}
+				onInteractOutside={(event) => {
+					if (completing) event.preventDefault();
+				}}
+				onEscapeKeydown={(event) => {
+					if (completing) event.preventDefault();
+				}}
+			>
+				<Dialog.Header>
+					<Dialog.Title
+						>{grandPrix.completedAt !== undefined
+							? 'Undo manual completion?'
+							: `Mark Grand Prix ${grandPrix.order} complete?`}</Dialog.Title
+					>
+					<Dialog.Description>
+						{#if grandPrix.completedAt !== undefined}
+							Completion will depend on every racer having a valid finish in every race again.
+						{:else}
+							End this Grand Prix using recorded points. Missing finishes earn zero points, and tied
+							leaders each receive a GP win. Results remain editable. You can undo manual
+							completion.
+						{/if}
+					</Dialog.Description>
+				</Dialog.Header>
+				<Dialog.Footer>
+					<Button variant="outline" disabled={completing} onclick={() => (completeOpen = false)}
+						>Cancel</Button
+					>
+					<Button variant="secondary" disabled={completing} onclick={setComplete}>
+						{completing
+							? 'Saving…'
+							: grandPrix.completedAt !== undefined
+								? 'Undo manual completion'
+								: 'Mark complete'}
+					</Button>
+				</Dialog.Footer>
+			</Dialog.Content>
+		</Dialog.Root>
 		<Dialog.Root bind:open={deleteOpen}>
 			<Dialog.Trigger
 				class={buttonVariants({ variant: 'ghost', size: 'sm' })}
-				disabled={adding || deleting}
+				disabled={adding || deleting || completing}
 			>
 				Delete GP
 			</Dialog.Trigger>
@@ -132,10 +202,12 @@
 					</Dialog.Description>
 				</Dialog.Header>
 				<Dialog.Footer>
-					<Button variant="outline" disabled={deleting} onclick={() => (deleteOpen = false)}
-						>Cancel</Button
+					<Button
+						variant="outline"
+						disabled={deleting || completing}
+						onclick={() => (deleteOpen = false)}>Cancel</Button
 					>
-					<Button variant="destructive" disabled={deleting} onclick={deleteGP}
+					<Button variant="destructive" disabled={deleting || completing} onclick={deleteGP}
 						>{deleting ? 'Deleting…' : 'Delete Grand Prix'}</Button
 					>
 				</Dialog.Footer>

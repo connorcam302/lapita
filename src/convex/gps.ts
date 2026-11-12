@@ -2,7 +2,7 @@ import { activeGpRows } from './gp_visibility';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { api } from './_generated/api';
-import { hasAllResults } from '../lib/grand-prix';
+import { hasAllResults, summarizeGrandPrix } from '../lib/grand-prix';
 import { buildArchive } from '../lib/gp-archive';
 
 export const getOne = query({
@@ -54,7 +54,10 @@ export const getAll = query({
 				const completed = raceResults.filter(({ results }) =>
 					hasAllResults(gp.participants, results)
 				);
-				const nextRace = raceResults.find((entry) => !completed.includes(entry))?.race;
+				const nextRace =
+					gp.completedAt === undefined
+						? raceResults.find((entry) => !completed.includes(entry))?.race
+						: undefined;
 				const coverTrackId = (nextRace ?? races[0])?.trackEndId;
 
 				const sortedStandings = gpStandings
@@ -76,6 +79,7 @@ export const getAll = query({
 					standings: sortedStandings,
 					raceCount: races.length,
 					completedRaces: completed.length,
+					completedAt: gp.completedAt,
 					nextRaceId: nextRace?._id ?? null,
 					coverTrackId: coverTrackId ?? null
 				};
@@ -123,9 +127,28 @@ export const getPlayerResults = query({
 						};
 					});
 
+				const races = await ctx.db
+					.query('races')
+					.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp.grandPrixId))
+					.collect();
+				const raceResults = await Promise.all(
+					races.map(async (race) => ({
+						results: await ctx.db
+							.query('results')
+							.withIndex('raceId', (q) => q.eq('raceId', race._id))
+							.collect()
+					}))
+				);
+				const summary = summarizeGrandPrix(
+					gpDetails!.participants,
+					raceResults,
+					gpDetails!.completedAt
+				);
+
 				return {
 					grandPrixId: gp.grandPrixId,
 					order: gpDetails!.order,
+					won: summary.winnerIds.includes(userId),
 					position: sortedStandings.find((standing) => standing.userId === userId)?.position,
 					points: sortedStandings.find((standing) => standing.userId === userId)?.points
 				};
@@ -308,5 +331,25 @@ export const restore = mutation({
 		if (!gp) throw new ConvexError('This Grand Prix no longer exists.');
 		if (gp.deletedAt === undefined) return;
 		await ctx.db.patch(grandPrixId, { deletedAt: undefined });
+	}
+});
+
+/** Explicit, reversible completion without inventing race results. */
+export const setComplete = mutation({
+	args: { grandPrixId: v.id('grandPrix'), complete: v.boolean() },
+	handler: async (ctx, { grandPrixId, complete }) => {
+		const gp = await ctx.db.get(grandPrixId);
+		if (!gp || gp.deletedAt !== undefined) throw new ConvexError('This Grand Prix is unavailable.');
+		if (complete) {
+			const races = await ctx.db
+				.query('races')
+				.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+				.collect();
+			if (!races.length || !gp.participants.length)
+				throw new ConvexError('A Grand Prix needs races and racers before it can be completed.');
+		}
+		await ctx.db.patch(grandPrixId, {
+			completedAt: complete ? (gp.completedAt ?? Date.now()) : undefined
+		});
 	}
 });

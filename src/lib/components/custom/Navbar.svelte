@@ -20,6 +20,11 @@
 			active: (path: string) => path === '/track-stats'
 		},
 		{
+			label: 'Stats',
+			href: resolve('/stats'),
+			active: (path: string) => path === '/stats'
+		},
+		{
 			label: 'Records',
 			href: resolve('/records'),
 			active: (path: string) => path === '/records'
@@ -48,7 +53,7 @@
 		</a>
 		<nav
 			aria-label="Main navigation"
-			class="order-last flex w-full gap-4 lg:order-none lg:w-auto lg:gap-5"
+			class="order-last flex w-full flex-wrap gap-x-4 gap-y-0 lg:order-none lg:w-auto lg:gap-5"
 		>
 			{#each links as link (link.href)}
 				{@const active = link.active(page.url.pathname)}

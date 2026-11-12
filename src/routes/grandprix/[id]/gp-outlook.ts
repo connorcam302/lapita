@@ -10,7 +10,8 @@ const SIMULATIONS = 5000;
 export function calculateGpOutlook<UserId extends string>(
 	participants: readonly UserId[],
 	races: readonly Race[],
-	stats: readonly TrackChances[]
+	stats: readonly TrackChances[],
+	manuallyComplete = false
 ) {
 	const projected = calculateExpectedPoints(participants, races, stats);
 	const players = participants.map((userId) => ({
@@ -46,7 +47,7 @@ export function calculateGpOutlook<UserId extends string>(
 					player.minimum += points;
 					player.maximum += points;
 					occupied.add(position);
-				} else {
+				} else if (!manuallyComplete) {
 					player.remaining++;
 					pending.push({ index, weight: chances.get(race.trackEndId)?.get(player.userId) ?? NaN });
 				}
@@ -59,6 +60,10 @@ export function calculateGpOutlook<UserId extends string>(
 			return { pending, available };
 		})
 		.filter(({ pending }) => pending.length > 0);
+
+	if (manuallyComplete) {
+		for (const player of players) player.projected = player.points;
+	}
 
 	const canEstimate =
 		participants.length > 0 &&

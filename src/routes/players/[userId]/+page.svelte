@@ -68,7 +68,11 @@
 	const standings = $derived([...(gpQuery.data ?? [])].sort((a, b) => b.order - a.order));
 	const favourite = $derived(profile.combinations[0]);
 	const wins = $derived(profile.finished.filter((result) => result.position === 1).length);
-	const gpWins = $derived(standings.filter((gp) => gp.position === 1).length);
+	const gpWins = $derived(
+		recordsQuery.data
+			? (recordsQuery.data.gpWins.find((entry) => entry.userId === user?._id)?.value ?? 0)
+			: '—'
+	);
 	const highlights = $derived(
 		profile.tracks.length
 			? [
@@ -131,9 +135,6 @@
 			<div class="grid grid-cols-[minmax(0,1fr)_6rem] sm:grid-cols-[1fr_18rem]">
 				<div class="p-5 sm:p-8">
 					<h1 class="font-title text-3xl sm:text-4xl">{user.name}</h1>
-					<p class="text-muted-foreground mt-3">
-						{standings.length} Grand Prix · {profile.tracks.length} tracks raced
-					</p>
 					{#if favourite}
 						<div class="mt-7">
 							<p class="text-muted-foreground text-sm">Most-used combination</p>
@@ -179,7 +180,7 @@
 				{/if}
 			</div>
 			<dl class="bg-muted/40 grid grid-cols-2 border-t sm:grid-cols-4">
-				{#each [{ label: 'Races completed', value: profile.finished.length }, { label: 'Average finish', value: profile.average?.toFixed(2) ?? '—' }, { label: 'Race wins', value: wins }, { label: 'GP first places', value: gpWins }] as stat (stat.label)}
+				{#each [{ label: 'Races completed', value: profile.finished.length }, { label: 'Average finish', value: profile.average?.toFixed(2) ?? '—' }, { label: 'Race wins', value: wins }, { label: 'GP wins', value: gpWins }] as stat (stat.label)}
 					<div class="p-5 sm:px-8">
 						<dt class="text-muted-foreground text-sm">{stat.label}</dt>
 						<dd class="font-body mt-1 text-3xl font-semibold tabular-nums">{stat.value}</dd>
@@ -203,11 +204,11 @@
 				class="h-auto w-full min-w-0 justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 pb-2"
 				aria-label="Player profile sections"
 			>
-				{#each ['overview', 'tracks', 'rivals', 'combinations', 'history'] as section (section)}
+				{#each ['overview', 'tracks', 'combinations', 'history'] as section (section)}
 					<Tabs.Trigger
 						value={section}
 						class="data-[state=active]:bg-lapita dark:data-[state=active]:bg-lapita flex-1 px-2 py-2 text-xs capitalize data-[state=active]:text-black data-[state=active]:shadow-none sm:flex-none sm:px-5 sm:text-sm dark:data-[state=active]:text-black"
-						>{section === 'rivals' ? 'Track rivals' : section}</Tabs.Trigger
+						>{section}</Tabs.Trigger
 					>
 				{/each}
 			</Tabs.List>
@@ -234,9 +235,9 @@
 							Loading personal records…
 						</p>
 					{:else}
-						<dl class="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-4">
+						<dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 							{#each personalRecords as record (record.key)}
-								<div class="border-b py-5">
+								<div class="bg-card rounded-md border p-4">
 									<dt class="text-sm font-medium">{record.label}</dt>
 									<dd class="mt-2 flex flex-wrap items-baseline gap-2">
 										<span class="font-body text-3xl font-semibold tabular-nums"
@@ -280,7 +281,7 @@
 						{#each highlights as { label, track } (label)}
 							<a
 								href={resolve(`/track-stats?track=${track.trackEndId}`)}
-								class="hover:bg-muted focus-visible:ring-ring flex items-center gap-4 rounded-sm border-b py-4 focus-visible:ring-2"
+								class="bg-card hover:bg-muted focus-visible:ring-ring mb-3 flex items-center gap-4 rounded-md border p-4 focus-visible:ring-2"
 							>
 								<img
 									src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
@@ -337,10 +338,9 @@
 					{@render raceTable(8)}
 				</section>
 			</Tabs.Content>
-			<Tabs.Content value="tracks" class="min-w-0"><TrackBars data={profile.tracks} /></Tabs.Content
-			>
-			<Tabs.Content value="rivals" class="min-w-0">
-				<TrackRivals userId={user._id} playerName={user.name} />
+			<Tabs.Content value="tracks" class="min-w-0 space-y-10">
+				<TrackBars data={profile.tracks} />
+				<TrackRivals userId={user._id} playerName={user.name} data={profile.tracks} />
 			</Tabs.Content>
 			<Tabs.Content value="combinations" class="min-w-0">
 				<section aria-labelledby="combo-heading">
@@ -357,18 +357,18 @@
 								class="bg-background border-input focus-visible:ring-ring h-9 rounded-md border px-3 focus-visible:ring-2"
 								><option value="races">Most used</option><option value="average"
 									>Average finish</option
-								><option value="wins">GP first places</option></select
+								><option value="wins">GP wins</option></select
 							></label
 						>
 					</div>
-					<div class="overflow-x-auto rounded-md border">
+					<div class="bg-card overflow-x-auto rounded-md border">
 						<Table.Root class="min-w-[850px]">
 							<Table.Header
 								><Table.Row
 									><Table.Head class="pl-4">Combination</Table.Head><Table.Head class="text-right"
 										>Races</Table.Head
 									><Table.Head class="text-right">Avg. finish</Table.Head><Table.Head
-										class="text-right">GP firsts</Table.Head
+										class="text-right">GP wins</Table.Head
 									><Table.Head class="text-right">Avg. GP pts</Table.Head><Table.Head
 										>Best track</Table.Head
 									><Table.Head>Worst track</Table.Head></Table.Row
@@ -469,7 +469,7 @@
 </main>
 
 {#snippet gpTable(limit: number)}
-	<div class="overflow-x-auto rounded-md border">
+	<div class="bg-card overflow-x-auto rounded-md border">
 		<Table.Root>
 			<Table.Header
 				><Table.Row
@@ -499,7 +499,7 @@
 {/snippet}
 
 {#snippet raceTable(limit: number)}
-	<div class="overflow-x-auto rounded-md border">
+	<div class="bg-card overflow-x-auto rounded-md border">
 		<Table.Root class="min-w-[580px]">
 			<Table.Header
 				><Table.Row

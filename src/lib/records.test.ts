@@ -127,3 +127,30 @@ test('nonparticipant results do not affect records and empty GPs stay incomplete
 	assert.deepEqual(data.raceWins, []);
 	assert.equal(data.gpScore[0].value, 9);
 });
+
+test('manual completion counts valid partial results, ignores missing and invalid finishes, and shares tied wins', () => {
+	const { gps, races, results } = fixture([
+		[1, 2, null],
+		[null, 22, 25]
+	]);
+	const manual = gps.map((gp) => ({ ...gp, completedAt: 1 }));
+	const data = calculateRecords(users, manual, races, results);
+	assert.equal(data.completedGps, 1);
+	assert.equal(data.completedRaces, 0);
+	assert.deepEqual(data.raceWins, []);
+	assert.deepEqual(
+		data.gpScore.map(({ name, value }) => [name, value]),
+		[
+			['Ada', 15],
+			['Bea', 14],
+			['Cal', 0]
+		]
+	);
+	results[4].position = 21;
+	assert.deepEqual(
+		calculateRecords(users, manual, races, results).gpWins.map(({ name }) => name),
+		['Ada', 'Bea']
+	);
+	assert.deepEqual(calculateRecords(users, gps, races, results).gpWins, []);
+	assert.equal(calculateRecords(users, manual, [], []).completedGps, 0);
+});

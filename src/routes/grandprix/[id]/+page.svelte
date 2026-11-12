@@ -165,7 +165,12 @@
 
 	const gpOutlook = $derived(
 		resultsTable && resultsTable.data && stats && stats.data
-			? calculateGpOutlook(grandPrixDetails.participants, resultsTable.data, stats.data)
+			? calculateGpOutlook(
+					grandPrixDetails.participants,
+					resultsTable.data,
+					stats.data,
+					grandPrixDetails.completedAt !== undefined
+				)
 			: undefined
 	);
 

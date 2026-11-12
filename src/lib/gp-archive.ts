@@ -1,5 +1,5 @@
 import type { Doc } from '../convex/_generated/dataModel';
-import { hasAllResults } from './grand-prix';
+import { hasAllResults, summarizeGrandPrix } from './grand-prix';
 
 export function buildArchive(
 	gps: Doc<'grandPrix'>[],
@@ -15,7 +15,11 @@ export function buildArchive(
 		const completedRaces = gpRaces.filter((race) =>
 			hasAllResults(gp.participants, resultsByRace.get(race._id) ?? [])
 		).length;
-		const complete = gpRaces.length > 0 && completedRaces === gpRaces.length;
+		const { complete, winnerIds } = summarizeGrandPrix(
+			gp.participants,
+			gpRaces.map((race) => ({ results: resultsByRace.get(race._id) ?? [] })),
+			gp.completedAt
+		);
 		const ranked = (standingsByGp.get(gp._id) ?? [])
 			.filter((standing) => gp.participants.includes(standing.userId))
 			.sort((a, b) => b.points - a.points);
@@ -33,9 +37,7 @@ export function buildArchive(
 				points: standing.points,
 				position: ranked.findIndex((other) => other.points === standing.points) + 1
 			})),
-			winnerIds: complete
-				? ranked.filter((standing) => standing.points === ranked[0]?.points).map((s) => s.userId)
-				: []
+			winnerIds
 		};
 	});
 }

@@ -41,6 +41,12 @@
 					detail: 'Track performance'
 				},
 				{
+					label: 'Stats',
+					href: resolve('/stats'),
+					keywords: 'statistics charts wins over time race grand prix performance combinations',
+					detail: 'Wins over time & player comparisons'
+				},
+				{
 					label: 'Records',
 					href: resolve('/records'),
 					keywords: 'records achievements wins podiums streaks best scores rankings',

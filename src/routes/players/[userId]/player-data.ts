@@ -73,7 +73,7 @@ export function summarizePlayer(results: PlayerResult[], standings: Standing[]) 
 		const combo = key ? combinations.get(key) : undefined;
 		if (combo) {
 			if (standing.points != null) combo.gpPoints.push(standing.points);
-			if (standing.position === 1) combo.gpWins++;
+			if (standing.won) combo.gpWins++;
 		}
 	}
 	return {
