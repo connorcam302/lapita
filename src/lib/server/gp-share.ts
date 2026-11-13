@@ -6,7 +6,10 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { readWithTimeout } from '$lib/query-resource';
 import { buildRecap } from '$lib/gp-recap';
 import { buildGpComboFit } from '$lib/gp-combo-fit';
-import { calculatePointsComparison } from '../../routes/grandprix/[id]/expected-points';
+import {
+	calculatePointsComparison,
+	calculateAwardComparisons
+} from '../../routes/grandprix/[id]/expected-points';
 import { calculateStartingGpOutlook } from '../../routes/grandprix/[id]/gp-outlook';
 
 const client = () => new ConvexHttpClient(PUBLIC_CONVEX_URL);
@@ -35,7 +38,7 @@ export async function getGpShareBase(id: string) {
 		gp,
 		races: races ?? [],
 		users,
-		recap: buildRecap(gp.participants, races ?? [], gp.completedAt)
+		recap: buildRecap(gp.participants, races ?? [], gp.completedAt, gp.knockoutWinnerId)
 	};
 }
 export type GpShareBase = Awaited<ReturnType<typeof getGpShareBase>>;
@@ -65,6 +68,9 @@ export async function getGpShareExtras(base: GpShareBase) {
 	return {
 		comparisons: currentStats
 			? calculatePointsComparison(gp.participants, races, currentStats)
+			: [],
+		awardComparisons: startingStats
+			? calculateAwardComparisons(gp.participants, races, startingStats)
 			: [],
 		startingPlayers: startingStats
 			? calculateStartingGpOutlook(gp.participants, races, startingStats).players

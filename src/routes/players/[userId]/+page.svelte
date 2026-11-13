@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import { hasTrackSample } from '$lib/track-ranking';
 	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { resolve } from '$app/paths';
@@ -257,7 +258,10 @@
 									<dt class="text-sm font-medium">{record.label}</dt>
 									<dd class="mt-2 flex flex-wrap items-baseline gap-2">
 										<span class="font-body text-3xl font-semibold tabular-nums"
-											>{record.entry?.value ?? (record.key === 'gpScore' ? '—' : 0)}</span
+											>{record.entry?.value ??
+												(record.key === 'gpScore' ? '—' : 0)}<KnockoutScoreMark
+												won={record.key === 'gpScore' && record.entry?.wonViaKnockout}
+											/></span
 										>
 										<span class="text-muted-foreground text-xs">{record.unit}</span>
 									</dd>
@@ -496,7 +500,8 @@
 								href={resolve('/grandprix/[id]', { id: gp.grandPrixId })}>Grand Prix {gp.order}</a
 							></Table.Cell
 						><Table.Cell class="text-right"><PositionBadge position={gp.position} /></Table.Cell
-						><Table.Cell class="pr-4 text-right tabular-nums">{gp.points ?? '—'}</Table.Cell
+						><Table.Cell class="pr-4 text-right tabular-nums"
+							>{gp.points ?? '—'}<KnockoutScoreMark won={gp.wonViaKnockout} /></Table.Cell
 						></Table.Row
 					>{:else}<Table.Row
 						><Table.Cell colspan={3} class="text-muted-foreground py-8 text-center"

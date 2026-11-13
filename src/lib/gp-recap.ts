@@ -1,4 +1,4 @@
-import { isValidFinishPosition } from './grand-prix';
+import { isValidFinishPosition, summarizeGrandPrix } from './grand-prix';
 import { placementToPoints } from './utils';
 
 type Race = {
@@ -11,7 +11,8 @@ type Race = {
 export function buildRecap(
 	participantIds: readonly string[],
 	races: readonly Race[],
-	completedAt?: number
+	completedAt?: number,
+	knockoutWinnerId?: string
 ) {
 	const participants = [...new Set(participantIds)];
 	const totals = new Map(participants.map((id) => [id, 0]));
@@ -30,7 +31,12 @@ export function buildRecap(
 					recorded.set(userId, recorded.get(userId)! + 1);
 					if (position === 1) wins.set(userId, wins.get(userId)! + 1);
 				} else missing++;
-				return { userId, total: totals.get(userId)!, recorded: valid };
+				return {
+					userId,
+					total: totals.get(userId)!,
+					recorded: valid,
+					position: valid ? position : null
+				};
 			});
 			return {
 				raceId: race._id,
@@ -41,15 +47,16 @@ export function buildRecap(
 	const complete =
 		participants.length > 0 && races.length > 0 && (completedAt !== undefined || missing === 0);
 	const fullHistory = participants.length > 0 && races.length > 0 && missing === 0;
-	const standings = participants
-		.map((userId) => ({
+	const summary = summarizeGrandPrix(participants, races, completedAt, knockoutWinnerId);
+	const standings = summary.standings
+		.map(({ userId, points, position }) => ({
 			userId,
-			points: totals.get(userId)!,
-			rank: rank(totals.get(userId)!),
+			points,
+			rank: position,
 			wins: wins.get(userId)!,
 			recorded: recorded.get(userId)!
 		}))
-		.sort((a, b) => b.points - a.points || a.userId.localeCompare(b.userId));
+		.sort((a, b) => a.rank - b.rank || a.userId.localeCompare(b.userId));
 	const leaders = standings.filter((racer) => racer.rank === 1);
 	const margin =
 		leaders.length > 1
@@ -86,6 +93,7 @@ export function buildRecap(
 	const biggestGain = Math.max(0, ...gains.map((racer) => racer.gain));
 	return {
 		complete,
+		knockoutWinnerId: summary.knockoutWinnerId,
 		fullHistory,
 		missing,
 		raceCount: races.length,
@@ -129,3 +137,47 @@ export function recapGapSeries(recap: Recap, userId: string) {
 		})
 	];
 }
+
+export type RecapAwardComparison = {
+	userId: string;
+	difference: number | null;
+	expectedWins: number | null;
+};
+
+/** Points over expectation plus a three-point bonus per win over expectation. */
+export function recapDriversOfTheDay(recap: Recap, comparisons: readonly RecapAwardComparison[]) {
+	if (!recap.complete || !recap.fullHistory || recap.standings.length < 2) return null;
+	const racers = recap.standings.map((standing) => {
+		const comparison = comparisons.find((row) => row.userId === standing.userId);
+		if (
+			comparison?.difference == null ||
+			comparison.expectedWins == null ||
+			!Number.isFinite(comparison.difference) ||
+			!Number.isFinite(comparison.expectedWins) ||
+			comparison.expectedWins < 0 ||
+			comparison.expectedWins > recap.raceCount
+		)
+			return null;
+		const finishes = recap.rows.map(
+			(row) => row.cells.find((cell) => cell.userId === standing.userId)!.position!
+		);
+		const winDifference = standing.wins - comparison.expectedWins;
+		return {
+			userId: standing.userId,
+			difference: comparison.difference,
+			expectedWins: comparison.expectedWins,
+			winDifference,
+			score: Math.round((comparison.difference + 3 * winDifference) * 1e6) / 1e6,
+			wins: standing.wins,
+			podiums: finishes.filter((position) => position <= 3).length,
+			averageFinish: finishes.reduce((sum, position) => sum + position, 0) / finishes.length
+		};
+	});
+	if (racers.some((racer) => racer === null)) return null;
+	const available = racers.filter((racer) => racer !== null);
+	const best = Math.max(...available.map(({ score }) => score));
+	return available.filter(({ score }) => score === best && score > 0);
+}
+
+export const signedRecapMetric = (value: number, digits = 0) =>
+	`${value > 0 ? '+' : ''}${value.toFixed(digits)}`;

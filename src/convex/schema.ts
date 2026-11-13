@@ -25,6 +25,8 @@ export default defineSchema({
 		era: v.optional(v.string()),
 		deletedAt: v.optional(v.number()),
 		completedAt: v.optional(v.number()),
+		knockoutWinnerId: v.optional(v.id('users')),
+		knockoutResults: v.optional(v.array(v.object({ userId: v.id('users'), position: v.number() }))),
 		order: v.number(),
 		participants: v.array(v.id('users'))
 	}).index('order', ['order']),

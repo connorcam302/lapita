@@ -1,5 +1,5 @@
 import type { Doc } from '../convex/_generated/dataModel';
-import { hasAllResults, summarizeGrandPrix } from './grand-prix';
+import { hasAllResults, summarizeGrandPrix, rankGrandPrixStandings } from './grand-prix';
 
 export function buildArchive(
 	gps: Doc<'grandPrix'>[],
@@ -15,18 +15,23 @@ export function buildArchive(
 		const completedRaces = gpRaces.filter((race) =>
 			hasAllResults(gp.participants, resultsByRace.get(race._id) ?? [])
 		).length;
-		const { complete, winnerIds } = summarizeGrandPrix(
+		const { complete, winnerIds, knockoutWinnerId } = summarizeGrandPrix(
 			gp.participants,
 			gpRaces.map((race) => ({ results: resultsByRace.get(race._id) ?? [] })),
-			gp.completedAt
+			gp.completedAt,
+			gp.knockoutWinnerId
 		);
-		const ranked = (standingsByGp.get(gp._id) ?? [])
-			.filter((standing) => gp.participants.includes(standing.userId))
-			.sort((a, b) => b.points - a.points);
+		const ranked = rankGrandPrixStandings(
+			(standingsByGp.get(gp._id) ?? []).filter((standing) =>
+				gp.participants.includes(standing.userId)
+			),
+			complete && winnerIds.length === 1 ? winnerIds[0] : undefined
+		);
 		return {
 			grandPrixId: gp._id,
 			order: gp.order,
 			era: gp.era,
+			knockoutWinnerId,
 			createdAt: gp._creationTime,
 			participants: gp.participants,
 			trackIds: [...new Set(gpRaces.flatMap((race) => [race.trackStartId, race.trackEndId]))],
@@ -36,7 +41,7 @@ export function buildArchive(
 			standings: ranked.map((standing) => ({
 				userId: standing.userId,
 				points: standing.points,
-				position: ranked.findIndex((other) => other.points === standing.points) + 1
+				position: standing.position
 			})),
 			winnerIds
 		};

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildRecap, recapSeries, recapGapSeries } from './gp-recap';
+import { buildRecap, recapSeries, recapGapSeries, recapDriversOfTheDay } from './gp-recap';
 
 const race = (order: number, positions: Record<string, number | null>) => ({
 	_id: `r${order}`,
@@ -142,4 +142,54 @@ test('gap chart stops every racer before any missing finish makes the leader unk
 	);
 	assert.deepEqual(recapGapSeries(recap, 'a'), [0, 0, null, null]);
 	assert.deepEqual(recapGapSeries(recap, 'b'), [0, 3, null, null]);
+});
+
+test('Driver of the Day combines points and wins above expectation, allowing wins to change the winner', () => {
+	const recap = buildRecap(['a', 'b'], [race(0, { a: 1, b: 2 }), race(1, { a: 1, b: 3 })]);
+	const comparisons = [
+		{ userId: 'a', difference: 4, expectedWins: 0.5 },
+		{ userId: 'b', difference: 6, expectedWins: 1.5 }
+	];
+	const winners = recapDriversOfTheDay(recap, comparisons)!;
+	assert.equal(winners.length, 1);
+	assert.equal(winners[0].userId, 'a');
+	assert.equal(winners[0].score, 8.5);
+	assert.equal(winners[0].winDifference, 1.5);
+	assert.equal(winners[0].averageFinish, 1);
+	assert.deepEqual(
+		recapDriversOfTheDay(
+			recap,
+			comparisons.map((row) => ({ ...row, difference: -20 }))
+		),
+		[]
+	);
+	assert.equal(recapDriversOfTheDay(recap, comparisons.slice(1)), null);
+	for (const expectedWins of [null, NaN, -1, 3]) {
+		assert.equal(
+			recapDriversOfTheDay(
+				recap,
+				comparisons.map((row) => ({ ...row, expectedWins }))
+			),
+			null
+		);
+	}
+	assert.equal(
+		recapDriversOfTheDay(buildRecap(['a', 'b'], [race(0, { a: 1 })], 1), comparisons),
+		null
+	);
+	assert.equal(recapDriversOfTheDay(buildRecap(['a'], [race(0, { a: 1 })]), comparisons), null);
+});
+
+test('equal combined award scores share the award even with different points and win gaps', () => {
+	const recap = buildRecap(['a', 'b'], [race(0, { a: 1, b: 2 })]);
+	assert.deepEqual(
+		recapDriversOfTheDay(recap, [
+			{ userId: 'a', difference: 2, expectedWins: 0.5 },
+			{ userId: 'b', difference: 5, expectedWins: 0.5 }
+		])!.map(({ userId, score }) => [userId, score]),
+		[
+			['a', 3.5],
+			['b', 3.5]
+		]
+	);
 });

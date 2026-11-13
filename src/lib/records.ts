@@ -8,11 +8,15 @@ type Entry = {
 	raceCount: number;
 	grandPrixId?: Id<'grandPrix'>;
 	grandPrixOrder?: number;
+	wonViaKnockout?: boolean;
 };
 
 export function calculateRecords(
 	users: Pick<Doc<'users'>, '_id' | 'name'>[],
-	gps: Pick<Doc<'grandPrix'>, '_id' | 'order' | 'participants' | 'completedAt'>[],
+	gps: Pick<
+		Doc<'grandPrix'>,
+		'_id' | 'order' | 'participants' | 'completedAt' | 'knockoutWinnerId'
+	>[],
 	races: Pick<Doc<'races'>, '_id' | 'grandPrixId' | 'order'>[],
 	results: Pick<Doc<'results'>, 'raceId' | 'userId' | 'position'>[]
 ) {
@@ -49,10 +53,11 @@ export function calculateRecords(
 	let completedGps = 0;
 	for (const gp of [...gps].sort((a, b) => a.order - b.order || a._id.localeCompare(b._id))) {
 		const gpRaces = [...(racesByGp.get(gp._id) ?? [])].sort((a, b) => a.order - b.order);
-		const { complete, scores } = summarizeGrandPrix(
+		const { complete, scores, winnerIds, knockoutWinnerId } = summarizeGrandPrix(
 			gp.participants,
 			gpRaces.map((race) => ({ results: resultsByRace.get(race._id) ?? [] })),
-			gp.completedAt
+			gp.completedAt,
+			gp.knockoutWinnerId
 		);
 		for (const race of gpRaces) {
 			const entries = resultsByRace.get(race._id) ?? [];
@@ -79,11 +84,10 @@ export function calculateRecords(
 		}
 		if (!complete) continue;
 		completedGps++;
-		const winningScore = Math.max(...scores.values());
 		for (const [id, points] of scores) {
 			const player = players.get(id);
 			if (!player) continue;
-			if (points === winningScore) player.gpWins++;
+			if (winnerIds.includes(id)) player.gpWins++;
 			if (!player.bestScore || points > player.bestScore.value) {
 				player.bestScore = {
 					userId: id,
@@ -91,7 +95,8 @@ export function calculateRecords(
 					value: points,
 					raceCount: gpRaces.length,
 					grandPrixId: gp._id,
-					grandPrixOrder: gp.order
+					grandPrixOrder: gp.order,
+					wonViaKnockout: knockoutWinnerId === id
 				};
 			}
 		}

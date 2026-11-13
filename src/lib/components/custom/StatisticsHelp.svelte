@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KnockoutScoreMark from './KnockoutScoreMark.svelte';
 	let { scope }: { scope: 'player' | 'stats' | 'records' | 'track' | 'gp' | 'rivalry' } = $props();
 	const descriptions = {
 		player:
@@ -62,7 +63,15 @@
 				<dd class="inline">
 					A GP with racers and scheduled races, where every race is fully recorded or the GP was
 					manually marked complete. Manual completion uses recorded points; missing finishes earn
-					zero. Tied leaders each receive a GP win. Results remain editable.
+					zero. Tied leaders share a GP win until a Knockout Tour winner is recorded. Results remain
+					editable.
+				</dd>
+			</div>
+			<div>
+				<dt class="text-foreground inline font-medium">Knockout Tour<KnockoutScoreMark won />:</dt>
+				<dd class="inline">
+					The plus beside a GP score means that player won via Knockout Tour. It awards no GP points
+					and does not count toward ordinary race statistics. Only the winner receives the GP win.
 				</dd>
 			</div>
 			{#if scope === 'player'}

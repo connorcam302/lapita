@@ -2,7 +2,12 @@ import { activeGpRows } from './gp_visibility';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { api } from './_generated/api';
-import { hasAllResults, summarizeGrandPrix } from '../lib/grand-prix';
+import {
+	hasAllResults,
+	summarizeGrandPrix,
+	rankGrandPrixStandings,
+	isValidFinishPosition
+} from '../lib/grand-prix';
 import { buildArchive } from '../lib/gp-archive';
 
 export const getOne = query({
@@ -60,24 +65,25 @@ export const getAll = query({
 						: undefined;
 				const coverTrackId = (nextRace ?? races[0])?.trackEndId;
 
-				const sortedStandings = gpStandings
-					.sort((a, b) => b.points - a.points)
-					.map((standing, index, sortedArray) => {
-						// Find position by looking for the first occurrence of this point value
-						const position = sortedArray.findIndex((s) => s.points === standing.points) + 1;
-						return {
-							userId: standing.userId,
-							points: standing.points,
-							position
-						};
-					});
+				const summary = summarizeGrandPrix(
+					gp.participants,
+					raceResults,
+					gp.completedAt,
+					gp.knockoutWinnerId
+				);
+				const sortedStandings = rankGrandPrixStandings(gpStandings, summary.knockoutWinnerId);
 
 				return {
 					grandPrixId: gp._id,
 					createdAt: gp._creationTime,
 					order: gp.order,
 					era: gp.era,
-					standings: sortedStandings,
+					knockoutWinnerId: summary.knockoutWinnerId,
+					standings: sortedStandings.map(({ userId, points, position }) => ({
+						userId,
+						points,
+						position
+					})),
 					raceCount: races.length,
 					completedRaces: completed.length,
 					completedAt: gp.completedAt,
@@ -116,18 +122,6 @@ export const getPlayerResults = query({
 					.withIndex('by_id', (q) => q.eq('_id', gp.grandPrixId))
 					.unique();
 
-				const sortedStandings = gpStandings
-					.sort((a, b) => b.points - a.points)
-					.map((standing, index, sortedArray) => {
-						// Find position by looking for the first occurrence of this point value
-						const position = sortedArray.findIndex((s) => s.points === standing.points) + 1;
-						return {
-							userId: standing.userId,
-							points: standing.points,
-							position
-						};
-					});
-
 				const races = await ctx.db
 					.query('races')
 					.withIndex('grandPrixId', (q) => q.eq('grandPrixId', gp.grandPrixId))
@@ -143,13 +137,17 @@ export const getPlayerResults = query({
 				const summary = summarizeGrandPrix(
 					gpDetails!.participants,
 					raceResults,
-					gpDetails!.completedAt
+					gpDetails!.completedAt,
+					gpDetails!.knockoutWinnerId
 				);
+
+				const sortedStandings = rankGrandPrixStandings(gpStandings, summary.knockoutWinnerId);
 
 				return {
 					grandPrixId: gp.grandPrixId,
 					order: gpDetails!.order,
 					won: summary.winnerIds.includes(userId),
+					wonViaKnockout: summary.knockoutWinnerId === userId,
 					position: sortedStandings.find((standing) => standing.userId === userId)?.position,
 					points: sortedStandings.find((standing) => standing.userId === userId)?.points
 				};
@@ -300,7 +298,10 @@ export const addRacers = mutation({
 				await ctx.db.insert('results', { raceId: race._id, userId });
 			}
 		}
-		await ctx.db.patch(grandPrixId, { participants: [...gp.participants, ...additions] });
+		await ctx.db.patch(grandPrixId, {
+			participants: [...gp.participants, ...additions],
+			...(additions.length ? { knockoutWinnerId: undefined, knockoutResults: undefined } : {})
+		});
 	}
 });
 
@@ -350,7 +351,59 @@ export const setComplete = mutation({
 				throw new ConvexError('A Grand Prix needs races and racers before it can be completed.');
 		}
 		await ctx.db.patch(grandPrixId, {
-			completedAt: complete ? (gp.completedAt ?? Date.now()) : undefined
+			completedAt: complete ? (gp.completedAt ?? Date.now()) : undefined,
+			...(!complete ? { knockoutWinnerId: undefined, knockoutResults: undefined } : {})
+		});
+	}
+});
+
+/** The extra Knockout Tour race is open only to the two tied GP leaders. */
+export const recordKnockoutResult = mutation({
+	args: {
+		grandPrixId: v.id('grandPrix'),
+		userId: v.id('users'),
+		position: v.union(v.number(), v.null())
+	},
+	handler: async (ctx, { grandPrixId, userId, position }) => {
+		const gp = await ctx.db.get(grandPrixId);
+		if (!gp || gp.deletedAt !== undefined) throw new ConvexError('This Grand Prix is unavailable.');
+		if (position !== null && !isValidFinishPosition(position)) {
+			throw new ConvexError('Finish position must be a whole number from 1 to 24.');
+		}
+		const races = await ctx.db
+			.query('races')
+			.withIndex('grandPrixId', (q) => q.eq('grandPrixId', grandPrixId))
+			.collect();
+		const raceResults = await Promise.all(
+			races.map(async (race) => ({
+				results: await ctx.db
+					.query('results')
+					.withIndex('raceId', (q) => q.eq('raceId', race._id))
+					.collect()
+			}))
+		);
+		const summary = summarizeGrandPrix(gp.participants, raceResults, gp.completedAt);
+		if (!summary.complete)
+			throw new ConvexError('Complete the Grand Prix before entering Knockout Tour results.');
+		if (summary.tiedLeaderIds.length !== 2 || !summary.tiedLeaderIds.includes(userId)) {
+			throw new ConvexError('Only the two racers tied for first can enter Knockout Tour results.');
+		}
+		const entries = (gp.knockoutResults ?? []).filter(
+			(result) => summary.tiedLeaderIds.includes(result.userId) && result.userId !== userId
+		);
+		if (position !== null) {
+			if (entries.some((result) => result.position === position)) {
+				throw new ConvexError('The racers must have different finishing positions.');
+			}
+			entries.push({ userId, position });
+		}
+		const winner =
+			entries.length === 2
+				? [...entries].sort((a, b) => a.position - b.position)[0].userId
+				: undefined;
+		await ctx.db.patch(grandPrixId, {
+			knockoutResults: entries.length ? entries : undefined,
+			knockoutWinnerId: winner
 		});
 	}
 });

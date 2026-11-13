@@ -1,10 +1,11 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import { resolve } from '$app/paths';
 	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { api } from '../../../../convex/_generated/api';
 	import type { PageData } from './$types';
 	import { convexStore } from '$lib/stores/states.svelte';
-	import { buildRecap } from '$lib/gp-recap';
+	import { buildRecap, recapDriversOfTheDay, signedRecapMetric } from '$lib/gp-recap';
 	import { createRecapImage, copyRecapImage, imageCopyErrorMessage } from '$lib/recap-image';
 	import { onDestroy } from 'svelte';
 	import Copy from '@lucide/svelte/icons/copy';
@@ -17,14 +18,16 @@
 	import ComboFit from './ComboFit.svelte';
 	import { buildGpComboFit } from '$lib/gp-combo-fit';
 	import { calculateStartingGpOutlook } from '../gp-outlook';
-	import { calculatePointsComparison } from '../expected-points';
+	import { calculatePointsComparison, calculateAwardComparisons } from '../expected-points';
 
 	let { data }: { data: PageData } = $props();
 	const gpQuery = useQuery(api.gps.getOne, () => ({ id: data.grandPrix._id }));
 	const resultQuery = useQuery(api.results.get, () => ({ grandPrixId: data.grandPrix._id }));
 	const gp = $derived(gpQuery.data);
 	const recap = $derived(
-		gp ? buildRecap(gp.participants, resultQuery.data ?? [], gp.completedAt) : null
+		gp
+			? buildRecap(gp.participants, resultQuery.data ?? [], gp.completedAt, gp.knockoutWinnerId)
+			: null
 	);
 	const statsQuery = useQuery(api.results.stats, () =>
 		gp && resultQuery.data?.length
@@ -49,6 +52,14 @@
 				}
 			: 'skip'
 	);
+	const awardComparisons = $derived(
+		gp && resultQuery.data && startingStats.data && !startingStats.error
+			? calculateAwardComparisons(gp.participants, resultQuery.data, startingStats.data)
+			: []
+	);
+
+	const driversOfTheDay = $derived(recap ? recapDriversOfTheDay(recap, awardComparisons) : null);
+
 	const startingOutlook = $derived(
 		gp && resultQuery.data && startingStats.data && !startingStats.error
 			? calculateStartingGpOutlook(gp.participants, resultQuery.data, startingStats.data)
@@ -101,6 +112,7 @@
 		try {
 			const blob = await createRecapImage(gp.order, recap, name, {
 				comparisons,
+				awardComparisons,
 				startingPlayers: startingOutlook?.players ?? [],
 				comboRatings
 			});
@@ -228,7 +240,8 @@
 								>{name(racer.userId)}</a
 							>
 							<p class="text-muted-foreground text-sm">
-								{racer.points} points · {racer.wins} race {racer.wins === 1 ? 'win' : 'wins'}
+								{racer.points}<KnockoutScoreMark won={recap.knockoutWinnerId === racer.userId} /> points
+								· {racer.wins} race {racer.wins === 1 ? 'win' : 'wins'}
 							</p>
 						</div>
 					</li>
@@ -236,12 +249,55 @@
 			</ol>
 		</section>
 
+		<section class="bg-card mt-6 rounded-md border p-5 sm:p-6" aria-labelledby="driver-heading">
+			<h2 id="driver-heading" class="font-body text-2xl font-semibold">Driver of the Day</h2>
+			{#if startingStats.isLoading}
+				<p class="text-muted-foreground mt-2 text-sm" role="status">
+					Finding the biggest overperformance…
+				</p>
+			{:else if driversOfTheDay?.length}
+				<ul class="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+					{#each driversOfTheDay as racer (racer.userId)}
+						<li class="flex flex-wrap items-baseline gap-x-3">
+							<a
+								class="font-body text-2xl break-words underline-offset-4 hover:underline"
+								href={resolve('/players/[userId]', { userId: racer.userId })}
+								>{name(racer.userId)}</a
+							>
+							<span class="font-semibold text-green-700 dark:text-green-400"
+								>{signedRecapMetric(racer.score, 2)} award score</span
+							>
+							<p class="text-muted-foreground w-full text-sm">
+								{signedRecapMetric(racer.difference)} points over xPoints · {racer.wins} wins vs {racer.expectedWins.toFixed(
+									2
+								)} expected ({signedRecapMetric(racer.winDifference, 2)}) · {racer.podiums} top-three
+								finishes · {racer.averageFinish.toFixed(2)} avg. finish
+							</p>
+						</li>
+					{/each}
+				</ul>
+				<p class="text-muted-foreground mt-3 text-sm">
+					Score = points above xPoints + 3 × wins above expected wins{driversOfTheDay.length > 1
+						? ' · Shared award'
+						: ''}. Expectations reconstructed from earlier GPs only; race probabilities compare this
+					group of racers.
+				</p>
+			{:else}
+				<p class="text-muted-foreground mt-2 text-sm">
+					{driversOfTheDay === null
+						? 'Award unavailable without complete finishes and pre-GP expectations for every racer.'
+						: 'No racer had a positive award score.'}
+				</p>
+			{/if}
+		</section>
+
 		<section class="mt-8" aria-labelledby="standings-heading">
 			<h2 id="standings-heading" class="font-body mb-3 text-2xl font-semibold">Standings</h2>
 			<div class="bg-card overflow-x-auto rounded-md border">
 				<table class="w-full text-left text-sm">
 					<caption class="sr-only"
-						>Final points from recorded finishes. Tied scores share competition ranks.</caption
+						>Final points from recorded finishes. Knockout Tour decides first place when recorded;
+						other ties share competition ranks.</caption
 					>
 					<thead class="border-b"
 						><tr
@@ -272,7 +328,11 @@
 										href={resolve('/players/[userId]', { userId: racer.userId })}
 										>{name(racer.userId)}</a
 									></th
-								><td class="p-3 text-right tabular-nums">{racer.points}</td>
+								><td class="p-3 text-right tabular-nums"
+									>{racer.points}<KnockoutScoreMark
+										won={recap.knockoutWinnerId === racer.userId}
+									/></td
+								>
 								<td class="p-3 text-right whitespace-nowrap tabular-nums">
 									{comparison?.expected ?? '—'}
 									{#if comparison?.difference != null}

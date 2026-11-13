@@ -174,3 +174,15 @@ test('deleted GPs reject result edits before writes', async () => {
 	await assert.rejects(f.save());
 	assert.equal(f.writes, 0);
 });
+
+test('editing a finish clears a Knockout result; saving the same finish preserves it', async () => {
+	const f = fixture();
+	f.find('gp')!.knockoutWinnerId = 'player';
+	f.find('gp')!.knockoutResults = [{ userId: 'player', position: 1 }];
+	await f.save({ position: 1 });
+	assert.equal(f.find('gp')!.knockoutWinnerId, 'player');
+	assert.deepEqual(f.find('gp')!.knockoutResults, [{ userId: 'player', position: 1 }]);
+	await f.save({ position: 2 });
+	assert.equal(f.find('gp')!.knockoutWinnerId, undefined);
+	assert.equal(f.find('gp')!.knockoutResults, undefined);
+});

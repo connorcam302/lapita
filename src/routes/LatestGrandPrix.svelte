@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import EraTag from '$lib/components/custom/EraTag.svelte';
 	import { resolve } from '$app/paths';
 	import { ArrowRight } from '@lucide/svelte';
@@ -159,7 +160,9 @@
 								{:else}<span class="text-muted-foreground" aria-hidden="true">—</span>{/if}
 							</span>
 							<span class="text-right font-medium tabular-nums"
-								>{standing.points}<span class="sr-only"> points</span></span
+								>{standing.points}<KnockoutScoreMark
+									won={gp.knockoutWinnerId === standing.userId}
+								/><span class="sr-only"> points</span></span
 							>
 						</li>
 					{/each}

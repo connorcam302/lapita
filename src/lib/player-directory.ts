@@ -2,7 +2,10 @@ import type { Doc, Id } from '../convex/_generated/dataModel';
 import { isValidFinishPosition, summarizeGrandPrix } from './grand-prix';
 
 type User = Pick<Doc<'users'>, '_id' | 'name'>;
-type Gp = Pick<Doc<'grandPrix'>, '_id' | 'participants' | 'deletedAt' | 'completedAt'>;
+type Gp = Pick<
+	Doc<'grandPrix'>,
+	'_id' | 'participants' | 'deletedAt' | 'completedAt' | 'knockoutWinnerId'
+>;
 type Race = Pick<Doc<'races'>, '_id' | 'grandPrixId'>;
 type Result = Pick<Doc<'results'>, 'raceId' | 'userId' | 'position' | 'characterId' | 'kartId'>;
 
@@ -68,7 +71,8 @@ export function aggregatePlayerDirectory(
 		const { winnerIds } = summarizeGrandPrix(
 			gp.participants,
 			racesByGp.get(gp._id) ?? [],
-			gp.completedAt
+			gp.completedAt,
+			gp.knockoutWinnerId
 		);
 		for (const id of winnerIds) {
 			const player = players.get(id);

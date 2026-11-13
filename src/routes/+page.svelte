@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import EraTag from '$lib/components/custom/EraTag.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
@@ -158,7 +159,11 @@
 														.points - standing.points})
 												</span>
 											{/if}
-											<span>{standing.points} <span class="text-muted-foreground">pts</span></span>
+											<span
+												>{standing.points}<KnockoutScoreMark
+													won={gp.knockoutWinnerId === standing.userId}
+												/> <span class="text-muted-foreground">pts</span></span
+											>
 										</span>
 									</li>
 								{/each}

@@ -1,7 +1,14 @@
-import type { Recap } from './gp-recap';
+import { Plus } from 'lucide';
+import {
+	recapDriversOfTheDay,
+	signedRecapMetric,
+	type RecapAwardComparison,
+	type Recap
+} from './gp-recap';
 import type { GpComboFit } from './gp-combo-fit';
 
 export type RecapImageExtras = {
+	awardComparisons?: readonly RecapAwardComparison[];
 	comparisons: readonly { userId: string; expected: number | null; difference: number | null }[];
 	startingPlayers: readonly { userId: string; winChance: number | null }[];
 	comboRatings: GpComboFit;
@@ -28,7 +35,7 @@ export function recapImageSize(recap: Recap) {
 	return {
 		width: 1200,
 		height:
-			210 +
+			360 +
 			Math.ceil(recap.podium.length / 3) * 154 +
 			76 +
 			recap.standings.length * standingsRowHeight +
@@ -48,6 +55,7 @@ export function renderRecapImage(
 	const podiumRows = Math.ceil(recap.podium.length / 3);
 	const standingsTop = 210 + podiumRows * 154;
 	const tableTop = standingsTop + 76;
+	const awardTop = tableTop + recap.standings.length * standingsRowHeight + 24;
 	const size = recapImageSize(recap);
 	canvas.width = size.width;
 	canvas.height = size.height;
@@ -134,6 +142,28 @@ export function renderRecapImage(
 	);
 	if (logo) ctx.drawImage(logo, 1000, 10, 170, 170);
 
+	// Render the same Lucide Plus paths used by the score marker in the app.
+	const drawPlus = (x: number, y: number, size: number) => {
+		ctx.save();
+		ctx.translate(x, y);
+		ctx.scale(size / 24, size / 24);
+		ctx.strokeStyle = colours.foreground;
+		ctx.lineWidth = 2.5;
+		ctx.lineCap = 'round';
+		ctx.beginPath();
+		for (const [, attributes] of Plus) {
+			const path = String(attributes.d);
+			const [startX, startY, length] = path.match(/\d+(?:\.\d+)?/g)!.map(Number);
+			ctx.moveTo(startX, startY);
+			ctx.lineTo(
+				startX + (path.includes('h') ? length : 0),
+				startY + (path.includes('v') ? length : 0)
+			);
+		}
+		ctx.stroke();
+		ctx.restore();
+	};
+
 	for (const [index, racer] of recap.podium.entries()) {
 		const x = 56 + (index % 3) * 368;
 		const y = 222 + Math.floor(index / 3) * 154;
@@ -145,7 +175,9 @@ export function renderRecapImage(
 		fittedText(name(racer.userId), x + 66, y + 44, 268, 26);
 		text(String(racer.points), x + 18, y + 105, 40, colours.foreground, 700);
 		const pointsWidth = ctx.measureText(String(racer.points)).width;
-		text('pts', x + 28 + pointsWidth, y + 104, 20, colours.muted);
+		const knockout = recap.knockoutWinnerId === racer.userId;
+		if (knockout) drawPlus(x + 21 + pointsWidth, y + 77, 18);
+		text('pts', x + 28 + pointsWidth + (knockout ? 21 : 0), y + 104, 20, colours.muted);
 		text(
 			`${racer.wins} ${racer.wins === 1 ? 'win' : 'wins'}`,
 			x + 334,
@@ -200,6 +232,7 @@ export function renderRecapImage(
 			700,
 			'right'
 		);
+		if (recap.knockoutWinnerId === racer.userId) drawPlus(476, y + standingsRowHeight / 2 - 13, 18);
 		text(String(racer.wins), 548, y + standingsRowHeight / 2, 23, colours.foreground, 400, 'right');
 		const comparison = extras.comparisons.find((row) => row.userId === racer.userId);
 		const difference = comparison?.difference;
@@ -297,6 +330,44 @@ export function renderRecapImage(
 			'right'
 		);
 		ctx.textBaseline = 'alphabetic';
+	}
+
+	const drivers = recapDriversOfTheDay(recap, extras.awardComparisons ?? []);
+	ctx.fillStyle = colours.surface;
+	ctx.beginPath();
+	ctx.roundRect(56, awardTop, 1088, 148, 6);
+	ctx.fill();
+	text('Driver of the Day', 80, awardTop + 40, 24, colours.yellow, 600);
+	if (drivers?.length) {
+		ctx.textBaseline = 'middle';
+		fittedText(drivers.map((racer) => name(racer.userId)).join(' · '), 80, awardTop + 96, 438, 46);
+		ctx.textBaseline = 'alphabetic';
+		if (drivers.length > 1)
+			text('Shared award · Metrics in racer order', 80, awardTop + 124, 18, colours.muted);
+		rect(550, awardTop + 24, 1, 100, colours.border);
+		for (const [metric, digits, label, x] of [
+			['difference', 0, 'Points above expected', 582],
+			['winDifference', 2, 'Wins above expected', 870]
+		] as const) {
+			const values = drivers.map((racer) => signedRecapMetric(racer[metric], digits)).join(' / ');
+			const colour = drivers.every((racer) => racer[metric] >= 0)
+				? colours.positive
+				: colours.foreground;
+			fittedText(values, x, awardTop + 70, 250, 38, colour, 600);
+			text(label, x, awardTop + 106, 19, colours.muted);
+		}
+	} else {
+		fittedText(
+			drivers === null
+				? 'Award unavailable · Complete finishes and pre-GP expectations required for every racer'
+				: 'No racer had a positive award score',
+			80,
+			awardTop + 87,
+			1040,
+			20,
+			colours.muted,
+			400
+		);
 	}
 
 	return canvas;

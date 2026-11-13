@@ -154,6 +154,13 @@ export const update = mutation({
 			return total + (isValidFinishPosition(finish) ? placementToPoints[finish] : 0);
 		}, 0);
 
+		if (
+			(grandPrix.knockoutWinnerId || grandPrix.knockoutResults) &&
+			currentResult.position !== position
+		) {
+			await ctx.db.patch(grandPrixId, { knockoutWinnerId: undefined, knockoutResults: undefined });
+		}
+
 		await ctx.db.patch(currentStandings._id, { points });
 
 		await ctx.db.patch(currentResult._id, {

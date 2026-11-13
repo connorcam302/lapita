@@ -73,7 +73,10 @@ bun install --frozen-lockfile
 bun run dev:convex
 ```
 
-Keep Convex running. It uses the selected deployment and configures `.env.local`. The current CLI no longer accepts `--local`; select a local deployment with `bunx convex deployment select local` if needed. In another
+Keep Convex running. It uses the selected deployment and configures `.env.local`.
+A running local backend can still serve older functions if the dev watcher has stopped.
+`bunx convex codegen` generates bindings but does not sync running queries/mutations;
+start `bun run dev:convex` before browser verification of backend changes. The current CLI no longer accepts `--local`; select a local deployment with `bunx convex deployment select local` if needed. In another
 terminal, ensure `PUBLIC_CONVEX_URL` points to that backend, then start the frontend:
 
 ```bash
@@ -138,6 +141,17 @@ functions are not the normal seed path.
 | `/grandprix/deleted` | Unlisted recovery page for deleted GPs; open by URL to restore races, results, and standings. Excluded from navigation/search and marked noindex.                                       |
 | `/grandprix/[id]`    | Race selection, result entry, standings, history, win-chance and combo charts; route page and `RaceWinChanceChart.svelte`                                                               |
 | `/grandprix/[id]/recap` | Completed GP podium, points, signed xPoints comparison, starting win chances, per-race combo ratings and local PNG download. |
+
+The recap's Driver of the Day score is points above xPoints + 3 × (race wins minus expected
+wins). Expected wins sum the per-race group win probabilities divided by 100; both award
+expectations use `beforeGrandPrixId` history, excluding this GP. These are reconstructed,
+not saved forecasts, and do not model outside-group racers. The largest positive score wins;
+equal scores (rounded to six decimals) share the award. Complete finishes and expectations
+for every participant, with at least two racers, are required. The recap and both PNG renderers
+show the award and its points/wins breakdown. In PNGs the compact award box follows the
+standings, with racer names beside the two signed metrics; podium boxes always show race wins. Helpers: `recapDriversOfTheDay` in `$lib/gp-recap.ts`
+and `calculateAwardComparisons` beside the GP page in `expected-points.ts`.
+
 | `/players` | Player directory: name search, sorting, profile links, recorded races, race/GP wins and average finish; one `users.directory` summary query. |
 | `/players/[userId]`  | Player summary, track averages, character/kart usage, GP/race history; route page and `TrackBars.svelte`                                                                                |
 | `/rivalry` | Head-to-head comparison of two players in shared races; URL parameters `a`, `b`, and `scope=all\|5\|10\|20`. |
@@ -186,6 +200,24 @@ reserved while deleted. `gp_visibility.ts` filters retained child records by act
 return 404. Neither mutation adds authentication. Focused tests:
 `node --import tsx --test tests/gp-management.test.ts`.
 
+Completed GPs with exactly two racers tied for first show Knockout Tour as the extra race
+in Results, followed by its result-entry form (`KnockoutTour.svelte`). Only those two racers can
+submit integer finishes from 1–24 via `gps.recordKnockoutResult`; the backend checks eligibility
+from completed source results. `grandPrix.knockoutResults` stores the finishes. Positions must
+be different; both are required before the better finish sets `grandPrix.knockoutWinnerId`.
+Results can be edited or removed individually. Knockout Tour decides first and second without
+adding GP points or contributing to normal track statistics, race wins, or forecasts.
+`KnockoutScoreMark.svelte` adds a small Lucide Plus icon beside the winner’s GP score with the
+accessible label/title “Won via Knockout Tour”. The mark appears in GP standings, totals,
+home/history, archive, player GP history, best-GP-score records/personal records and recaps
+(including PNG scores). Aggregate points and win counts are not marked as individual GP scores.
+The shared statistics help explains the plus and excludes Knockout Tour from points and ordinary
+race statistics.
+The shared ranking helpers propagate the winner to standings, recaps/images, player history,
+records, directory and stats. Changing a normal finish, adding racers, or undoing manual
+completion clears Knockout Tour results and its winner. Character/kart-only edits preserve them.
+Focused checks: `node --import tsx --test tests/knockout-tour.test.ts tests/gp-management.test.ts tests/result-update.test.ts`.
+
 The GP result form selects racer, character, kart, race, and finishing position. A
 successful save moves to the next race when one exists and shows a toast. Saving the final race keeps it selected. The form accepts only integer finishes from 1–24, prevents duplicate submissions, and retains selections on errors. `EditTrackButton`
 offers a three-lap track or separate start/end tracks for a transition.
@@ -220,7 +252,11 @@ as results update. The calculation lives beside the page in `expected-points.ts`
 node --import tsx 'src/routes/grandprix/[id]/expected-points.test.ts'
 ```
 
-The Grand Prix stats section has one table with grouped Starting stats and Ongoing stats columns. Starting stats show projected
+The Grand Prix stats section has one table with grouped Starting stats and Ongoing stats columns. Its numeric
+points columns omit Knockout Tour plus markers (the score markers remain in standings and GP
+results totals). Starting and ongoing GP win percentages have keyboard-focusable shadcn Hover Card
+triggers; percentages use adaptive precision and largest-remainder rounding so each column totals 100%. Hover cards explain simulation limits. The local
+`ui/hover-card` primitives wrap the installed Bits UI `LinkPreview` API. Starting stats show projected
 xPoints and GP win chance with all GP races treated as unplayed, using `results.stats` with
 `beforeGrandPrixId` to include only earlier GP orders. These are reconstructed forecasts, not
 stored snapshots: edits to earlier history, participants, or scheduled tracks can change them.
@@ -235,7 +271,7 @@ GP cutoff and deleted-GP exclusions. Racers with no valid history use a neutral 
 stats retain only real track results. The fallback feeds race chances, xPoints comparisons,
 and both starting/ongoing GP forecasts. Focused regression check:
 `node --import tsx tests/forecast-history.test.ts`. Unavailable query data still leaves chances unavailable;
-completed GPs use exact competition ranks, including tied wins/podiums. Min/max limits are
+GP win forecasts split tied-leader credit equally until a recorded Knockout Tour winner takes 100%; podium forecasts retain competition ranks. Min/max limits are
 per-player bounds, not outcomes every racer can achieve together. Focused tests:
 
 ```bash
@@ -498,7 +534,7 @@ bun run tsx --test src/lib/records.test.ts
 
 Records use completed participant races only; GP wins and best scores require a nonempty,
 fully completed or manually completed GP. Scores are recomputed with `placementToPoints`, tied GP leaders each
-receive a win, and rankings use competition places. Average finish requires ten races.
+receive a win unless a Knockout Tour winner is recorded, and rankings use competition places. Average finish requires ten races.
 Winning streaks follow GP/race order across GPs entered; a loss or unfinished race breaks
 the streak. The live `records.get` query scans historical tables once and returns rankings;
 revisit aggregation if history grows beyond Convex query read limits.

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
@@ -144,8 +145,8 @@
 			</div>
 		</div>
 		<p class="text-muted-foreground mt-4 text-xs">
-			Winners include tied first places in completed Grand Prix. Track matches either end of a
-			transition.
+			Winners use Knockout Tour results when recorded; unresolved first-place ties share the win.
+			Track matches either end of a transition.
 		</p>
 	</form>
 
@@ -194,7 +195,9 @@
 								>{name(standing.userId)}</a
 							>
 							<span class="tabular-nums"
-								>{standing.points} <span class="text-muted-foreground">pts</span></span
+								>{standing.points}<KnockoutScoreMark
+									won={gp.knockoutWinnerId === standing.userId}
+								/> <span class="text-muted-foreground">pts</span></span
 							>
 						</li>
 					{/each}

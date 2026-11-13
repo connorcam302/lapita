@@ -1,6 +1,10 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { calculateExpectedPoints, calculatePointsComparison } from './expected-points';
+import {
+	calculateExpectedPoints,
+	calculatePointsComparison,
+	calculateAwardComparisons
+} from './expected-points';
 
 const participants = ['a', 'b', 'c', 'd'];
 const stats = [
@@ -195,4 +199,26 @@ test('secondary metrics do not override distinct win chances', () => {
 		}
 	];
 	assert.deepEqual(project([race('one')], chances), { a: 15, b: 12, c: 10, d: 9 });
+});
+
+test('award expected wins sum probabilities across repeated tracks, independent of actual wins', () => {
+	const races = [race('one', [1, 2, 3, 4]), race('two', [1, 2, 3, 4]), race('one', [1, 2, 3, 4])];
+	const comparison = calculateAwardComparisons(participants, races, stats);
+	assert.ok(Math.abs(comparison[0].expectedWins! - 1.25) < 1e-9);
+	assert.ok(Math.abs(comparison.reduce((sum, row) => sum + row.expectedWins!, 0) - 3) < 1e-9);
+	races[0].results[0].position = 24;
+	assert.equal(
+		calculateAwardComparisons(participants, races, stats)[0].expectedWins,
+		comparison[0].expectedWins
+	);
+	assert.equal(
+		calculateAwardComparisons(participants, races, stats.slice(1))[0].expectedWins,
+		null
+	);
+	const partial = [{ trackId: 'one', chances: stats[0].chances.slice(1) }, stats[1]];
+	assert.ok(
+		calculateAwardComparisons(participants, races, partial).every(
+			(row) => row.expectedWins === null
+		)
+	);
 });

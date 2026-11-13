@@ -134,3 +134,30 @@ export function calculatePointsComparison<UserId extends string>(
 		};
 	});
 }
+
+/** Reconstructed pre-GP expectations for the Driver of the Day award. */
+export function calculateAwardComparisons(
+	participants: readonly string[],
+	races: readonly Race[],
+	stats: readonly TrackChances[]
+) {
+	const byTrack = new Map(stats.map((stat) => [stat.trackId, stat.chances]));
+	return calculatePointsComparison(participants, races, stats).map((comparison) => {
+		let expectedWins: number | null = 0;
+		for (const race of races) {
+			const chances = byTrack.get(race.trackEndId);
+			// Compare the same full field on every scheduled race, never treat missing chances as zero.
+			if (
+				participants.some((id) => {
+					const chance = chances?.find(({ user }) => user.userId === id)?.chance;
+					return chance == null || !Number.isFinite(chance) || chance < 0 || chance > 100;
+				})
+			) {
+				expectedWins = null;
+				break;
+			}
+			expectedWins += chances!.find(({ user }) => user.userId === comparison.userId)!.chance / 100;
+		}
+		return { ...comparison, expectedWins: races.length ? expectedWins : null };
+	});
+}

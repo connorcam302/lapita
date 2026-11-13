@@ -57,6 +57,7 @@ test('combination GP stats use the most-used setup, with no NaN for unused GP at
 				order: 1,
 				position: 1,
 				won: true,
+				wonViaKnockout: false,
 				points: 100
 			}
 		]
@@ -86,6 +87,7 @@ test('tied GP combination usage preserves existing query order, independent of r
 				order: 1,
 				position: 1,
 				won: true,
+				wonViaKnockout: false,
 				points: 100
 			}
 		]
@@ -103,7 +105,8 @@ test('leading an unfinished GP does not award a combination win', () => {
 				order: 1,
 				position: 1,
 				points: 15,
-				won: false
+				won: false,
+				wonViaKnockout: false
 			}
 		]
 	);

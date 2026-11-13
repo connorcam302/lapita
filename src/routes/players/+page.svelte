@@ -175,8 +175,9 @@
 				</p>
 				<p>
 					GP wins use completed GPs, including manually completed GPs. Points come from recorded
-					finishes using Lapita scoring; tied leaders each earn a win. Missing finishes earn zero in
-					manually completed GPs.
+					finishes using Lapita scoring. Knockout Tour decides the GP winner when recorded and
+					awards no points or ordinary race wins. Unresolved tied leaders each earn a GP win.
+					Missing finishes earn zero in manually completed GPs.
 				</p>
 				<p>
 					Character and kart art show each player’s most-used choices independently across recorded

@@ -29,8 +29,8 @@ test('completed GP outcomes are exact and ties use competition places', () => {
 			p.podiumChance
 		]),
 		[
-			[15, 15, 15, 15, 0, 100, 100],
-			[15, 15, 15, 15, 0, 100, 100],
+			[15, 15, 15, 15, 0, 50, 100],
+			[15, 15, 15, 15, 0, 50, 100],
 			[12, 12, 12, 12, 0, 0, 100],
 			[9, 9, 9, 9, 0, 0, 0]
 		]
@@ -158,10 +158,17 @@ test('manual completion fixes outcomes to recorded points with no remaining fore
 			p.winChance
 		]),
 		[
-			[15, 15, 15, 15, 0, 100],
-			[15, 15, 15, 15, 0, 100],
+			[15, 15, 15, 15, 0, 50],
+			[15, 15, 15, 15, 0, 50],
 			[12, 12, 12, 12, 0, 0],
 			[0, 0, 0, 0, 0, 0]
 		]
+	);
+});
+
+test('tied simulated leaders share win credit and chances sum to 100', () => {
+	const outlook = calculateGpOutlook(participants, [race(), race(), race()], stats);
+	assert.ok(
+		Math.abs(outlook.players.reduce((sum, player) => sum + player.winChance!, 0) - 100) < 1e-9
 	);
 });

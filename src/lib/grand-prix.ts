@@ -24,7 +24,8 @@ export function hasAllResults(
 export function summarizeGrandPrix<UserId extends string>(
 	participants: readonly UserId[],
 	races: readonly { results: readonly { userId: string; position?: number | null }[] }[],
-	completedAt?: number
+	completedAt?: number,
+	knockoutWinnerId?: UserId
 ) {
 	const scores = new Map(participants.map((id) => [id, 0]));
 	for (const race of races) {
@@ -40,9 +41,47 @@ export function summarizeGrandPrix<UserId extends string>(
 		races.length > 0 &&
 		(completedAt !== undefined || races.every((race) => hasAllResults(participants, race.results)));
 	const highest = Math.max(...scores.values());
+	const tiedLeaderIds = complete ? participants.filter((id) => scores.get(id) === highest) : [];
+	const winner =
+		tiedLeaderIds.length > 1 && knockoutWinnerId && tiedLeaderIds.includes(knockoutWinnerId)
+			? knockoutWinnerId
+			: undefined;
 	return {
 		scores,
 		complete,
-		winnerIds: complete ? participants.filter((id) => scores.get(id) === highest) : []
+		tiedLeaderIds,
+		knockoutWinnerId: winner,
+		winnerIds: winner ? [winner] : tiedLeaderIds,
+		standings: rankGrandPrixStandings(
+			participants.map((userId) => ({ userId, points: scores.get(userId)! })),
+			winner
+		)
 	};
+}
+
+/** Knockout breaks only the first-place tie. Race points and all other ties stay intact. */
+export function rankGrandPrixStandings<T extends { userId: string; points: number }>(
+	standings: readonly T[],
+	knockoutWinnerId?: string
+) {
+	const highest = Math.max(...standings.map((standing) => standing.points));
+	const winner = standings.find(
+		(standing) => standing.userId === knockoutWinnerId && standing.points === highest
+	);
+	const sorted = [...standings].sort(
+		(a, b) =>
+			b.points - a.points ||
+			Number(b === winner) - Number(a === winner) ||
+			a.userId.localeCompare(b.userId)
+	);
+	return sorted.map((standing) => ({
+		...standing,
+		position:
+			1 +
+			sorted.filter(
+				(other) =>
+					other.points > standing.points ||
+					(other === winner && standing !== winner && other.points === standing.points)
+			).length
+	}));
 }

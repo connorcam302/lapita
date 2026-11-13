@@ -9,6 +9,7 @@ import {
 	restore,
 	newGp,
 	setComplete,
+	recordKnockoutResult,
 	getPlayerResults
 } from '../src/convex/gps';
 
@@ -301,4 +302,55 @@ test('manual completion rejects a GP without races or participants', async () =>
 		await assert.rejects(completion(f.ctx, true), /needs races and racers/);
 		assert.equal(f.writes, 0);
 	}
+});
+
+const knockout = (ctx: MutationCtx, userId: string, position: number | null) =>
+	(
+		recordKnockoutResult as unknown as {
+			_handler: (
+				ctx: MutationCtx,
+				args: { grandPrixId: Id<'grandPrix'>; userId: Id<'users'>; position: number | null }
+			) => Promise<void>;
+		}
+	)._handler(ctx, {
+		grandPrixId: 'gp' as Id<'grandPrix'>,
+		userId: userId as Id<'users'>,
+		position
+	});
+
+test('Knockout race accepts only the two tied leaders and determines the winner from both finishes', async () => {
+	const f = fixture();
+	await f.add(['b']);
+	await assert.rejects(knockout(f.ctx, 'b', 2), /Complete the Grand Prix/);
+	await completion(f.ctx, true);
+	await assert.rejects(knockout(f.ctx, 'b', 2), /two racers tied for first/);
+	f.rows.results.find((row) => row.userId === 'b' && row.raceId === 'r1')!.position = 1;
+	f.find('s1')!.points = 999;
+	const originalResults = structuredClone(f.rows.results);
+	const originalStandings = structuredClone(f.rows.grandPrixStandings);
+	for (const invalid of [0, 25, 1.5, NaN, Infinity])
+		await assert.rejects(knockout(f.ctx, 'a', invalid), /whole number/);
+	await assert.rejects(knockout(f.ctx, 'c', 1), /two racers tied for first/);
+	await knockout(f.ctx, 'b', 9);
+	assert.equal(f.find('gp')!.knockoutWinnerId, undefined);
+	assert.deepEqual(f.find('gp')!.knockoutResults, [{ userId: 'b', position: 9 }]);
+	await assert.rejects(knockout(f.ctx, 'a', 9), /different finishing positions/);
+	await knockout(f.ctx, 'a', 4);
+	assert.equal(f.find('gp')!.knockoutWinnerId, 'a');
+	await knockout(f.ctx, 'b', 2);
+	assert.equal(f.find('gp')!.knockoutWinnerId, 'b');
+	await knockout(f.ctx, 'b', null);
+	assert.equal(f.find('gp')!.knockoutWinnerId, undefined);
+	assert.deepEqual(f.find('gp')!.knockoutResults, [{ userId: 'a', position: 4 }]);
+	await knockout(f.ctx, 'b', 2);
+	assert.deepEqual(f.rows.results, originalResults);
+	assert.deepEqual(f.rows.grandPrixStandings, originalStandings);
+	await completion(f.ctx, false);
+	assert.equal(f.find('gp')!.knockoutResults, undefined);
+	await completion(f.ctx, true);
+	await knockout(f.ctx, 'b', 2);
+	await f.add(['c']);
+	assert.equal(f.find('gp')!.knockoutResults, undefined);
+	await f.del();
+	await assert.rejects(knockout(f.ctx, 'b', 2), /unavailable/);
 });

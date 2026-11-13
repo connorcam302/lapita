@@ -1,22 +1,26 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import ManageGP from './ManageGP.svelte';
+	import KnockoutTour from './KnockoutTour.svelte';
 	import { buildRecap } from '$lib/gp-recap';
 	import QueryNotice from '$lib/components/custom/QueryNotice.svelte';
 	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
 	import { selectGpRace } from './race-selection';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { isValidFinishPosition } from '$lib/grand-prix';
+	import { isValidFinishPosition, summarizeGrandPrix } from '$lib/grand-prix';
 	import PositionBadge from '$lib/components/custom/PositionBadge.svelte';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import { calculatePointsComparison } from './expected-points';
 	import { calculateGpOutlook, calculateStartingGpOutlook } from './gp-outlook';
+	import { formatWinPercentages } from './win-percentages';
 	import { calculateCumulativePoints } from './cumulative-points';
 	import type { PageData } from './$types';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
+	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
@@ -143,6 +147,15 @@
 
 	const resultsTable = useQuery(api.results.get, () => ({ grandPrixId: grandPrixDetails._id }));
 
+	const knockoutParticipants = $derived.by(() => {
+		const summary = summarizeGrandPrix(
+			grandPrixDetails.participants,
+			resultsTable.data ?? [],
+			grandPrixDetails.completedAt
+		);
+		return summary.complete && summary.tiedLeaderIds.length === 2 ? summary.tiedLeaderIds : [];
+	});
+
 	const cumulativeRows = $derived(
 		calculateCumulativePoints(
 			grandPrixDetails.participants,
@@ -156,7 +169,8 @@
 					grandPrixDetails.participants,
 					resultsTable.data,
 					stats.data,
-					grandPrixDetails.completedAt !== undefined
+					grandPrixDetails.completedAt !== undefined,
+					grandPrixDetails.knockoutWinnerId
 				)
 			: undefined
 	);
@@ -198,6 +212,13 @@
 		};
 	};
 	const sortedOutlook = $derived.by(() => {
+		const percentageLabels = (outlook: typeof gpOutlook) => {
+			const players = outlook?.players ?? [];
+			const labels = formatWinPercentages(players.map((player) => player.winChance ?? NaN));
+			return new Map(players.map((player, i) => [player.userId, labels[i]]));
+		};
+		const ongoingLabels = percentageLabels(gpOutlook);
+		const startingLabels = percentageLabels(startingOutlook);
 		const startingPlayers = new Map(
 			startingOutlook?.players.map((player) => [player.userId, player])
 		);
@@ -206,7 +227,9 @@
 				...player,
 				name: getPlayerName(playerList ?? [], player.userId),
 				startingProjected: startingPlayers.get(player.userId)?.projected ?? null,
-				startingWinChance: startingPlayers.get(player.userId)?.winChance ?? null
+				startingWinChance: startingPlayers.get(player.userId)?.winChance ?? null,
+				winChanceLabel: ongoingLabels.get(player.userId) ?? '—',
+				startingWinChanceLabel: startingLabels.get(player.userId) ?? '—'
 			}))
 			.sort((a, b) => {
 				const first = a[outlookSort.key];
@@ -755,7 +778,11 @@
 											{getPlayerName(playerList, userId)}
 										</div>
 										<div class="flex items-center justify-between text-lg">
-											<div>{points}</div>
+											<div>
+												{points}<KnockoutScoreMark
+													won={grandPrixDetails.knockoutWinnerId === userId}
+												/>
+											</div>
 											{#if i !== 0}
 												<div class="text-sm text-red-500">
 													(-{standings.data[i - 1].points - points})
@@ -955,6 +982,25 @@
 												{/each}
 											</Table.Row>
 										{/each}
+										{#if tab === 'results' && knockoutParticipants.length === 2}
+											<Table.Row>
+												<Table.Cell>{(resultsTable.data?.length ?? 0) + 1}</Table.Cell>
+												<Table.Cell
+													><a href="#knockout-tour" class="underline underline-offset-4"
+														>Knockout Tour</a
+													></Table.Cell
+												>
+												{#each grandPrixDetails.participants as userId (userId)}
+													<Table.Cell class="text-center tabular-nums"
+														>{knockoutParticipants.includes(userId)
+															? (grandPrixDetails.knockoutResults?.find(
+																	(result) => result.userId === userId
+																)?.position ?? '—')
+															: '—'}</Table.Cell
+													>
+												{/each}
+											</Table.Row>
+										{/if}
 									</Table.Body>
 									<Table.Footer>
 										<Table.Row>
@@ -965,7 +1011,11 @@
 												{@const points =
 													cumulativeRows.at(-1)?.cells.find((cell) => cell.userId === playerId)
 														?.total ?? 0}
-												<Table.Cell class="text-center tabular-nums">{points}</Table.Cell>
+												<Table.Cell class="text-center tabular-nums"
+													>{points}<KnockoutScoreMark
+														won={grandPrixDetails.knockoutWinnerId === playerId}
+													/></Table.Cell
+												>
 											{/each}
 										</Table.Row>
 									</Table.Footer>
@@ -975,6 +1025,14 @@
 					{/if}
 				</Card.Root>
 			</div>
+
+			{#if resultsTable.data && !resultsTable.error && !liveGp.error}
+				<KnockoutTour
+					grandPrix={grandPrixDetails}
+					races={resultsTable.data}
+					players={playerList ?? []}
+				/>
+			{/if}
 
 			<Card.Root>
 				<Card.Header>
@@ -1059,11 +1117,54 @@
 														'border-l'
 												)}
 											>
-												{value == null
-													? '—'
-													: typeof value === 'number'
-														? `${Number(value.toFixed(1))}${column.key === 'winChance' || column.key === 'startingWinChance' ? '%' : ''}`
-														: value}
+												{#if typeof value === 'number' && (column.key === 'winChance' || column.key === 'startingWinChance')}
+													{@const chanceLabel =
+														column.key === 'winChance'
+															? player.winChanceLabel
+															: player.startingWinChanceLabel}
+													{@const simulations =
+														(column.key === 'winChance' ? gpOutlook : startingOutlook)
+															?.simulations ?? 0}
+													<HoverCard.Root openDelay={150} closeDelay={100}>
+														<HoverCard.Trigger>
+															{#snippet child({ props })}
+																<button
+																	{...props}
+																	type="button"
+																	class="focus-visible:ring-ring cursor-help rounded-sm underline decoration-dotted underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
+																	aria-label={`${player.name}: ${column.group.toLowerCase()} GP win chance ${chanceLabel}`}
+																>
+																	{chanceLabel}
+																</button>
+															{/snippet}
+														</HoverCard.Trigger>
+														<HoverCard.Content
+															side="top"
+															class="w-auto px-3 py-2 font-medium tabular-nums"
+														>
+															{chanceLabel}
+															{#if simulations > 0}
+																<p class="text-muted-foreground max-w-56 text-xs font-normal">
+																	Estimated from {simulations.toLocaleString()} simulations. Ties share
+																	win credit.
+																	{#if value === 0 || value === 100}
+																		Rare outcomes may be missed; {chanceLabel} is a sampled estimate.{/if}
+																</p>
+															{:else if value > 0 && value < 100}
+																<p class="text-muted-foreground max-w-56 text-xs font-normal">
+																	Tied leaders share the chance until Knockout Tour decides the
+																	winner.
+																</p>
+															{/if}
+														</HoverCard.Content>
+													</HoverCard.Root>
+												{:else}
+													{value == null
+														? '—'
+														: typeof value === 'number'
+															? Number(value.toFixed(1))
+															: value}
+												{/if}
 											</Table.Cell>
 										{/each}
 									</Table.Row>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
 	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import { resolve } from '$app/paths';
 	import { useRecoverableQuery as useQuery } from '$lib/use-recoverable-query.svelte';
@@ -23,7 +24,7 @@
 						key: 'gpWins',
 						title: 'Most GP wins',
 						description:
-							'Overall first places in completed Grand Prix, including manual completion. Ties count for each winner.',
+							'Overall first places in completed Grand Prix, including manual completion. Knockout Tour decides the winner when recorded; unresolved ties count for each leader.',
 						unit: 'GP wins',
 						rows: records.data.gpWins
 					},
@@ -148,7 +149,9 @@
 										<Table.Cell class="pr-4 text-right font-medium tabular-nums"
 											>{category.key === 'average'
 												? entry.value.toFixed(2)
-												: entry.value.toLocaleString()}</Table.Cell
+												: entry.value.toLocaleString()}<KnockoutScoreMark
+												won={category.key === 'gpScore' && entry.wonViaKnockout}
+											/></Table.Cell
 										>
 									</Table.Row>
 								{:else}<Table.Row

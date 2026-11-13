@@ -149,3 +149,90 @@ test('recap PNG renders most-used pairs, ties and missing choices within the ima
 	assert.ok(drawn.every(({ y }) => y < canvas.height));
 	assert.deepEqual({ width: canvas.width, height: canvas.height }, recapImageSize(recap));
 });
+
+test('recap PNG keeps race wins in the podium boxes after a Knockout win', async () => {
+	const { createCanvas } = await import('@napi-rs/canvas');
+	const { buildRecap } = await import('./gp-recap');
+	const { renderRecapImage } = await import('./recap-image');
+	const recap = buildRecap(
+		['a', 'b'],
+		[
+			{
+				_id: 'race',
+				order: 0,
+				results: [
+					{ userId: 'a', position: 4 },
+					{ userId: 'b', position: 5 }
+				]
+			}
+		],
+		undefined,
+		'b'
+	);
+	const canvas = createCanvas(1, 1);
+	const ctx = canvas.getContext('2d');
+	const labels: string[] = [];
+	const original = ctx.fillText.bind(ctx);
+	ctx.fillText = (text, x, y) => {
+		labels.push(text);
+		original(text, x, y);
+	};
+	renderRecapImage(canvas as unknown as HTMLCanvasElement, 1, recap, (id) => id);
+	assert.ok(!labels.includes('Knockout winner'));
+	assert.equal(labels.filter((label) => label === '0 wins').length, 2);
+	assert.equal(labels.filter((label) => label === '9').length, 4);
+	assert.deepEqual(
+		recap.standings.map((row) => [row.userId, row.rank, row.points, row.wins]),
+		[
+			['b', 1, 9, 0],
+			['a', 2, 9, 0]
+		]
+	);
+});
+
+test('recap PNG includes Driver of the Day and its supporting metrics', async () => {
+	const { createCanvas } = await import('@napi-rs/canvas');
+	const { buildRecap } = await import('./gp-recap');
+	const { renderRecapImage, recapImageSize } = await import('./recap-image');
+	const recap = buildRecap(
+		['a', 'b'],
+		[
+			{
+				_id: 'r',
+				order: 0,
+				results: [
+					{ userId: 'a', position: 1 },
+					{ userId: 'b', position: 2 }
+				]
+			}
+		]
+	);
+	const canvas = createCanvas(1, 1);
+	const ctx = canvas.getContext('2d');
+	const labels: string[] = [];
+	const original = ctx.fillText.bind(ctx);
+	ctx.fillText = (text, x, y) => {
+		labels.push(text);
+		assert.ok(y < canvas.height);
+		original(text, x, y);
+	};
+	renderRecapImage(canvas as unknown as HTMLCanvasElement, 1, recap, (id) => id, {
+		awardComparisons: [
+			{ userId: 'a', difference: 3, expectedWins: 0.25 },
+			{ userId: 'b', difference: -3, expectedWins: 0.75 }
+		],
+		comparisons: [
+			{ userId: 'a', expected: 12, difference: 3 },
+			{ userId: 'b', expected: 15, difference: -3 }
+		],
+		startingPlayers: [],
+		comboRatings: []
+	});
+	assert.ok(labels.includes('Driver of the Day'));
+	assert.ok(labels.includes('+3'));
+	assert.ok(labels.includes('Points above expected'));
+	assert.ok(labels.includes('+0.75'));
+	assert.ok(labels.includes('Wins above expected'));
+	assert.ok(labels.indexOf('Driver of the Day') > labels.indexOf('Standings'));
+	assert.deepEqual({ width: canvas.width, height: canvas.height }, recapImageSize(recap));
+});

@@ -4,7 +4,14 @@ import { placementToPoints } from './utils';
 
 type Gp = Pick<
 	Doc<'grandPrix'>,
-	'_id' | '_creationTime' | 'order' | 'participants' | 'deletedAt' | 'completedAt' | 'era'
+	| '_id'
+	| '_creationTime'
+	| 'order'
+	| 'participants'
+	| 'deletedAt'
+	| 'completedAt'
+	| 'knockoutWinnerId'
+	| 'era'
 >;
 type Race = Pick<Doc<'races'>, '_id' | 'grandPrixId' | 'order' | 'trackEndId'>;
 type Result = Pick<Doc<'results'>, 'raceId' | 'userId' | 'position' | 'characterId' | 'kartId'>;
@@ -69,7 +76,8 @@ export function calculateStats(
 		const summary = summarizeGrandPrix(
 			gp.participants,
 			gpRaces.map((race) => ({ results: resultsByRace.get(race._id) ?? [] })),
-			gp.completedAt
+			gp.completedAt,
+			gp.knockoutWinnerId
 		);
 		let raceCount = 0;
 		for (const race of gpRaces) {

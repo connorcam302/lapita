@@ -1,5 +1,5 @@
 import { placementToPoints } from '$lib/utils';
-import { hasAllResults } from '$lib/grand-prix';
+import { hasAllResults, summarizeGrandPrix } from '$lib/grand-prix';
 import { calculateExpectedPoints } from './expected-points';
 
 type Race = Parameters<typeof calculateExpectedPoints>[1][number];
@@ -11,7 +11,8 @@ export function calculateGpOutlook<UserId extends string>(
 	participants: readonly UserId[],
 	races: readonly Race[],
 	stats: readonly TrackChances[],
-	manuallyComplete = false
+	manuallyComplete = false,
+	knockoutWinnerId?: UserId
 ) {
 	const projected = calculateExpectedPoints(participants, races, stats);
 	const players = participants.map((userId) => ({
@@ -108,9 +109,12 @@ export function calculateGpOutlook<UserId extends string>(
 					scores[player.index] += placementToPoints[available[place]];
 				}
 			}
+			const best = Math.max(...scores);
+			const tiedLeaders = scores.filter((score) => score === best).length;
 			for (let i = 0; i < players.length; i++) {
 				const rank = 1 + scores.filter((score) => score > scores[i]).length;
-				if (rank === 1) wins[i]++;
+				// A tied GP needs a knockout; without a knockout model, share its win credit equally.
+				if (rank === 1) wins[i] += 1 / tiedLeaders;
 				if (rank <= 3) podiums[i]++;
 			}
 		}
@@ -118,6 +122,21 @@ export function calculateGpOutlook<UserId extends string>(
 			player.winChance = (wins[i] / trials) * 100;
 			player.podiumChance = (podiums[i] / trials) * 100;
 		});
+	}
+	const summary = summarizeGrandPrix(
+		participants,
+		races,
+		manuallyComplete ? 0 : undefined,
+		knockoutWinnerId
+	);
+	if (summary.knockoutWinnerId) {
+		for (const player of players) {
+			player.winChance = player.userId === summary.knockoutWinnerId ? 100 : 0;
+			player.podiumChance =
+				summary.standings.find((standing) => standing.userId === player.userId)!.position <= 3
+					? 100
+					: 0;
+		}
 	}
 	return {
 		players,

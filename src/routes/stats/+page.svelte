@@ -273,8 +273,9 @@
 				</div>
 			</details>
 			<p class="text-muted-foreground mt-4 max-w-prose text-xs">
-				GP wins include manually completed Grand Prix and shared first places. Race wins count
-				first-place finishes in fully recorded races, including races in ongoing GPs.
+				GP wins include manually completed Grand Prix. Tied first places share a win until a
+				Knockout Tour winner is recorded. Knockout Tour awards no points or ordinary race wins. Race
+				wins count first-place finishes in fully recorded races, including races in ongoing GPs.
 			</p>
 		</section>
 
