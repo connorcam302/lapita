@@ -85,7 +85,7 @@
 <section
 	id="personal-progress"
 	aria-labelledby="progress-heading"
-	class="bg-card min-w-0 overflow-hidden rounded-md border"
+	class="bg-card min-w-0 overflow-hidden rounded-xl border"
 >
 	<header class="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-4 sm:px-5">
 		<div>

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import KnockoutScoreMark from '$lib/components/custom/KnockoutScoreMark.svelte';
-	import StatisticsHelp from '$lib/components/custom/StatisticsHelp.svelte';
 	import ManageGP from './ManageGP.svelte';
 	import KnockoutTour from './KnockoutTour.svelte';
 	import { buildRecap } from '$lib/gp-recap';
@@ -1037,18 +1036,8 @@
 			<Card.Root>
 				<Card.Header>
 					<Card.Title>Grand Prix stats</Card.Title>
-					<Card.Description>
-						{#if gpOutlook}{gpOutlook.completedRaces} of {gpOutlook.totalRaces} races fully recorded ·
-							{grandPrixDetails.participants.length} racers{:else}{grandPrixDetails.participants
-								.length} racers{/if}
-					</Card.Description>
 				</Card.Header>
 				<Card.Content class="space-y-3">
-					<StatisticsHelp scope="gp" />
-					<p class="text-muted-foreground text-xs">
-						xPoints and win chances give each racer’s latest 10 finishes on each track full weight.
-						Each older finish carries 10% less weight than the one before it.
-					</p>
 					<QueryNotice
 						error={stats.error}
 						loading={stats.isLoading}

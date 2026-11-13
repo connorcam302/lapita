@@ -116,7 +116,7 @@
 		</section>
 	{:else}
 		<dl
-			class="bg-card mt-6 grid grid-cols-2 gap-x-6 gap-y-5 rounded-md border p-4 sm:grid-cols-4 sm:p-6"
+			class="bg-card mt-6 grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border p-4 sm:grid-cols-4 sm:p-6"
 		>
 			{#each [{ label: 'Completed Grand Prix', value: stats.data.completedGps }, { label: 'Fully recorded races', value: stats.data.completedRaces }, { label: 'Racers', value: players.length }, { label: 'Tracks raced', value: stats.data.tracks.length }] as stat (stat.label)}
 				<div>
@@ -126,7 +126,7 @@
 			{/each}
 		</dl>
 
-		<section class="bg-card mt-6 rounded-md border p-4 sm:p-6" aria-labelledby="wins-heading">
+		<section class="bg-card mt-6 rounded-xl border p-4 sm:p-6" aria-labelledby="wins-heading">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<h2 id="wins-heading" class="font-title text-xl">Wins over time</h2>
@@ -297,7 +297,7 @@
 					></label
 				>
 			</div>
-			<div class="bg-card mt-5 overflow-x-auto rounded-md border">
+			<div class="bg-card mt-5 overflow-x-auto rounded-xl border">
 				<Table.Root
 					><Table.Header
 						><Table.Row
@@ -323,7 +323,7 @@
 		</section>
 
 		<div class="my-6 grid gap-6 lg:grid-cols-2">
-			<section class="bg-card min-w-0 rounded-md border p-4 sm:p-6" aria-labelledby="rates-heading">
+			<section class="bg-card min-w-0 rounded-xl border p-4 sm:p-6" aria-labelledby="rates-heading">
 				<h2 id="rates-heading" class="font-title text-lg">Race win rate</h2>
 				<p class="text-muted-foreground mt-2 text-sm">
 					First-place finishes as a percentage of fully recorded races entered. Race counts in
@@ -332,7 +332,7 @@
 				<StatsBars data={winRates} label="Race win rate (%)" percent />
 			</section>
 			<section
-				class="bg-card min-w-0 rounded-md border p-4 sm:p-6"
+				class="bg-card min-w-0 rounded-xl border p-4 sm:p-6"
 				aria-labelledby="points-heading"
 			>
 				<h2 id="points-heading" class="font-title text-lg">Average points per race</h2>
@@ -343,7 +343,7 @@
 				<StatsBars data={averagePoints} label="Average points per race" />
 			</section>
 			<section
-				class="bg-card min-w-0 rounded-md border p-4 sm:p-6"
+				class="bg-card min-w-0 rounded-xl border p-4 sm:p-6"
 				aria-labelledby="averages-heading"
 			>
 				<h2 id="averages-heading" class="font-title text-lg">Average finish</h2>
@@ -354,7 +354,7 @@
 				<StatsBars data={averageFinishes} label="Average finish" />
 			</section>
 			<section
-				class="bg-card min-w-0 rounded-md border p-4 sm:p-6"
+				class="bg-card min-w-0 rounded-xl border p-4 sm:p-6"
 				aria-labelledby="combos-heading"
 			>
 				<h2 id="combos-heading" class="font-title text-lg">Favourite combinations</h2>
@@ -370,7 +370,7 @@
 			</section>
 		</div>
 
-		<section class="bg-card mb-6 rounded-md border p-4 sm:p-6" aria-labelledby="activity-heading">
+		<section class="bg-card mb-6 rounded-xl border p-4 sm:p-6" aria-labelledby="activity-heading">
 			<h2 id="activity-heading" class="font-title text-xl">GP activity over time</h2>
 			<p class="text-muted-foreground mt-2 text-sm">
 				Grand Prix started each month, including ongoing GPs. Grouped by GP creation date in UTC;

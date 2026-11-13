@@ -25,7 +25,7 @@
 </script>
 
 <section
-	class="bg-card min-w-0 rounded-md border p-4 sm:p-6"
+	class="bg-card min-w-0 rounded-xl border p-4 sm:p-6"
 	aria-labelledby="rivalry-chart-heading"
 >
 	<h2 id="rivalry-chart-heading" class="font-title text-lg">Cumulative rivalry</h2>

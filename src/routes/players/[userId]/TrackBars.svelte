@@ -36,7 +36,7 @@
 	} satisfies Chart.ChartConfig;
 </script>
 
-<section class="bg-card min-w-0 rounded-md border p-4 sm:p-6" aria-labelledby="tracks-heading">
+<section class="bg-card min-w-0 rounded-xl border p-4 sm:p-6" aria-labelledby="tracks-heading">
 	<h2 id="tracks-heading" class="font-title text-lg">Track averages</h2>
 	<div class="text-muted-foreground my-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
 		<span class="flex items-center gap-2"

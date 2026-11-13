@@ -26,7 +26,7 @@
 </script>
 
 {#if disconnected}
-	<div role="status" class="bg-card mx-auto my-3 max-w-6xl rounded-md border px-4 py-3 text-sm">
+	<div role="status" class="bg-card mx-auto my-3 max-w-6xl rounded-xl border px-4 py-3 text-sm">
 		Connection lost. Reconnecting… Available results and your form selections are kept.
 	</div>
 {/if}

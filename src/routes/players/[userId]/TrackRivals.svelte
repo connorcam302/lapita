@@ -119,7 +119,7 @@
 				></label
 			>
 		</div>
-		<div class="bg-card overflow-x-auto rounded-md border">
+		<div class="bg-card overflow-x-auto rounded-xl border">
 			<Table.Root class="min-w-[900px]">
 				<Table.Header>
 					<Table.Row>

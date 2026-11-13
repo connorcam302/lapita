@@ -188,7 +188,7 @@
 		</div>
 	</header>
 	{#if gpQuery.error || resultQuery.error}
-		<section role="alert" class="bg-card rounded-md border p-6">
+		<section role="alert" class="bg-card rounded-xl border p-6">
 			<h2 class="font-body text-2xl">Could not load the recap</h2>
 			<p class="text-muted-foreground mt-2">Check your connection and try again.</p>
 			<Button
@@ -205,20 +205,20 @@
 	{:else if !gp}
 		<p role="status">This Grand Prix is unavailable. It may have been deleted.</p>
 	{:else if !recap?.complete}
-		<section class="bg-card rounded-md border p-6">
+		<section class="bg-card rounded-xl border p-6">
 			<h2 class="font-body text-2xl">No completed recap yet</h2>
 			<p class="text-muted-foreground mt-2">Complete this Grand Prix to see its recap.</p>
 		</section>
 	{:else}
 		{#if !recap.fullHistory}
-			<aside class="bg-card mb-6 rounded-md border p-5" aria-label="Incomplete race history">
+			<aside class="bg-card mb-6 rounded-xl border p-5" aria-label="Incomplete race history">
 				<h2 class="font-semibold">Manually completed</h2>
 				<p class="text-muted-foreground mt-2 text-sm">
 					{recap.missing} finishes missing or invalid. Points and wins use recorded results only.
 				</p>
 			</aside>
 		{/if}
-		<section aria-labelledby="podium-heading" class="bg-card overflow-hidden rounded-md border">
+		<section aria-labelledby="podium-heading" class="bg-card overflow-hidden rounded-xl border">
 			<div class="bg-lapita p-5 text-neutral-900 sm:p-6">
 				<h2 id="podium-heading" class="font-title text-2xl">Podium</h2>
 				<p class="mt-2 text-sm">
@@ -249,7 +249,7 @@
 			</ol>
 		</section>
 
-		<section class="bg-card mt-6 rounded-md border p-5 sm:p-6" aria-labelledby="driver-heading">
+		<section class="bg-card mt-6 rounded-xl border p-5 sm:p-6" aria-labelledby="driver-heading">
 			<h2 id="driver-heading" class="font-body text-2xl font-semibold">Driver of the Day</h2>
 			{#if startingStats.isLoading}
 				<p class="text-muted-foreground mt-2 text-sm" role="status">
@@ -293,7 +293,7 @@
 
 		<section class="mt-8" aria-labelledby="standings-heading">
 			<h2 id="standings-heading" class="font-body mb-3 text-2xl font-semibold">Standings</h2>
-			<div class="bg-card overflow-x-auto rounded-md border">
+			<div class="bg-card overflow-x-auto rounded-xl border">
 				<table class="w-full text-left text-sm">
 					<caption class="sr-only"
 						>Final points from recorded finishes. Knockout Tour decides first place when recorded;

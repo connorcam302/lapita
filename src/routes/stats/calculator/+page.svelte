@@ -80,7 +80,7 @@
 	</header>
 
 	<div class="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-		<Card.Root class="min-w-0 rounded-md shadow-none">
+		<Card.Root class="min-w-0 shadow-none">
 			<Card.Header>
 				<h2 class="font-title text-lg">Your combination</h2>
 			</Card.Header>
@@ -134,7 +134,7 @@
 			</Card.Content>
 		</Card.Root>
 
-		<Card.Root class="min-w-0 rounded-md shadow-none">
+		<Card.Root class="min-w-0 shadow-none">
 			<Card.Header>
 				<h2 class="font-title text-lg">Combination stats</h2>
 				<Card.Description id="average-description"
@@ -189,7 +189,7 @@
 		</Card.Root>
 	</div>
 
-	<Card.Root class="mt-6 min-w-0 rounded-md shadow-none">
+	<Card.Root class="mt-6 min-w-0 shadow-none">
 		<Card.Header>
 			<h2 class="font-title text-lg">Stat breakdown</h2>
 			<Card.Description

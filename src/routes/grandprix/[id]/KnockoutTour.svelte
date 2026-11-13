@@ -59,7 +59,7 @@
 
 {#if summary.complete && summary.tiedLeaderIds.length === 2}
 	<section
-		class="bg-card space-y-4 rounded-md border p-4 sm:p-5"
+		class="bg-card space-y-4 rounded-xl border p-4 sm:p-5"
 		aria-labelledby="knockout-heading"
 		id="knockout-tour"
 	>

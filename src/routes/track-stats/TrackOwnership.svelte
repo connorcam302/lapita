@@ -175,7 +175,7 @@
 		aria-label="Track ownership grid"
 	>
 		{#each visible as track (track.trackId)}
-			<article class="bg-card flex min-w-0 flex-col rounded-md border p-4">
+			<article class="bg-card flex min-w-0 flex-col rounded-xl border p-4">
 				<a
 					href={resolve('/tracks/[trackId]', { trackId: track.trackId })}
 					class="focus-visible:outline-ring hover:text-primary flex items-center gap-3 rounded-sm focus-visible:outline-2"

@@ -60,7 +60,7 @@
 			Choose two racers to compare their finishes in the same races.
 		</p>
 	</header>
-	<div class="bg-card grid gap-4 rounded-md border p-4 sm:grid-cols-3 sm:p-5">
+	<div class="bg-card grid gap-4 rounded-xl border p-4 sm:grid-cols-3 sm:p-5">
 		{#each [{ key: 'a', label: 'First player', selected: a, other: b }, { key: 'b', label: 'Second player', selected: b, other: a }] as field (field.key)}
 			<div class="min-w-0">
 				<label for={`rivalry-${field.key}`} class="mb-2 block text-sm font-medium"
@@ -124,7 +124,7 @@
 				{scopeLabels[scope]} · {stats.count} shared {stats.count === 1 ? 'race' : 'races'} · {stats.ties}
 				{stats.ties === 1 ? 'tie' : 'ties'}
 			</p>
-			<div class="bg-card mt-5 overflow-x-auto rounded-md border">
+			<div class="bg-card mt-5 overflow-x-auto rounded-xl border">
 				<Table.Root
 					><Table.Caption class="sr-only">Shared-race comparison</Table.Caption><Table.Header
 						><Table.Row
@@ -160,7 +160,7 @@
 					Advantage is the difference in finishes ahead. Tracks use the race’s end track, including
 					transitions. Largest samples first.
 				</p>
-				<div class="bg-card mt-5 overflow-x-auto rounded-md border">
+				<div class="bg-card mt-5 overflow-x-auto rounded-xl border">
 					<Table.Root class="min-w-[700px]"
 						><Table.Header
 							><Table.Row
@@ -197,7 +197,7 @@
 				<p class="text-muted-foreground mt-2 text-sm">
 					Newest GP and race first. Select a race to open its results.
 				</p>
-				<div class="bg-card mt-5 overflow-x-auto rounded-md border">
+				<div class="bg-card mt-5 overflow-x-auto rounded-xl border">
 					<Table.Root class="min-w-[620px]"
 						><Table.Header
 							><Table.Row

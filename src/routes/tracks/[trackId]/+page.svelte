@@ -46,7 +46,7 @@
 		>All track stats</a
 	>
 	{#if detail.error}
-		<div role="alert" class="space-y-3 rounded-md border p-6">
+		<div role="alert" class="space-y-3 rounded-xl border p-6">
 			<h1 class="font-title text-xl">Track stats unavailable</h1>
 			<p>Couldn’t load this track. Check your connection and try again.</p>
 			<Button variant="outline" onclick={detail.retry}>Try again</Button>
@@ -57,7 +57,7 @@
 		<h1 class="font-title text-2xl">Track not found</h1>
 		<p class="text-muted-foreground">Choose a track from Track Stats or search.</p>
 	{:else}
-		<header class="bg-card overflow-hidden rounded-md border">
+		<header class="bg-card overflow-hidden rounded-xl border">
 			<img
 				src={`/tracks/locations/${track.img}.jpg`}
 				alt={`${track.name} course`}
@@ -222,7 +222,7 @@
 			</div>
 			{#each detail.data.races.slice(0, visibleCount) as race (race._id)}
 				<RaceHistoryRow {race} />
-			{:else}<p class="text-muted-foreground rounded-md border p-6">
+			{:else}<p class="text-muted-foreground rounded-xl border p-6">
 					This track hasn’t appeared in a Grand Prix yet.
 				</p>{/each}
 			{#if visibleCount < detail.data.races.length}<Button

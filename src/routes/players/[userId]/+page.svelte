@@ -143,7 +143,7 @@
 		<h1 class="font-title text-3xl">{user.name}</h1>
 		<p class="text-muted-foreground py-12" role="status">Loading race record…</p>
 	{:else}
-		<header class="bg-card overflow-hidden rounded-md border">
+		<header class="bg-card overflow-hidden rounded-xl border">
 			<div class="grid grid-cols-[minmax(0,1fr)_6rem] sm:grid-cols-[1fr_18rem]">
 				<div class="p-5 sm:p-8">
 					<h1 class="font-title text-3xl sm:text-4xl">{user.name}</h1>
@@ -254,7 +254,7 @@
 					{:else}
 						<dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 							{#each personalRecords as record (record.key)}
-								<div class="bg-card rounded-md border p-4">
+								<div class="bg-card rounded-xl border p-4">
 									<dt class="text-sm font-medium">{record.label}</dt>
 									<dd class="mt-2 flex flex-wrap items-baseline gap-2">
 										<span class="font-body text-3xl font-semibold tabular-nums"
@@ -300,7 +300,7 @@
 							{#each highlights as { label, track } (label)}
 								<a
 									href={resolve(`/track-stats?track=${track.trackEndId}`)}
-									class="bg-card hover:bg-muted focus-visible:ring-ring flex items-center gap-4 rounded-md border p-4 focus-visible:ring-2"
+									class="bg-card hover:bg-muted focus-visible:ring-ring flex items-center gap-4 rounded-xl border p-4 focus-visible:ring-2"
 								>
 									<img
 										src={`/tracks/icons/${getTrackImage(tracks, track.trackEndId)}.png`}
@@ -379,7 +379,7 @@
 							></label
 						>
 					</div>
-					<div class="bg-card overflow-x-auto rounded-md border">
+					<div class="bg-card overflow-x-auto rounded-xl border">
 						<Table.Root class="min-w-[850px]">
 							<Table.Header
 								><Table.Row
@@ -483,7 +483,7 @@
 </main>
 
 {#snippet gpTable(limit: number, fillHeight = false)}
-	<div class="bg-card overflow-x-auto rounded-md border" class:grid={fillHeight}>
+	<div class="bg-card overflow-x-auto rounded-xl border" class:grid={fillHeight}>
 		<Table.Root class={fillHeight ? 'h-full' : undefined}>
 			<Table.Header
 				><Table.Row
@@ -514,7 +514,7 @@
 {/snippet}
 
 {#snippet raceTable(limit: number)}
-	<div class="bg-card overflow-x-auto rounded-md border">
+	<div class="bg-card overflow-x-auto rounded-xl border">
 		<Table.Root class="min-w-[580px]">
 			<Table.Header
 				><Table.Row

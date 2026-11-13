@@ -16,7 +16,7 @@
 </script>
 
 {#if error}
-	<div class="bg-card space-y-3 rounded-md border p-4" role="alert">
+	<div class="bg-card space-y-3 rounded-xl border p-4" role="alert">
 		<p class="font-medium">Could not load {label}</p>
 		<p class="text-muted-foreground text-sm">Check your connection and try again.</p>
 		{#if retry}<Button variant="outline" size="sm" onclick={retry}>Try again</Button>{/if}

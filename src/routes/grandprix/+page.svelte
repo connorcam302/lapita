@@ -66,7 +66,7 @@
 		<h1 class="font-title text-2xl sm:text-3xl">All Grand Prix</h1>
 		<SetEra />
 	</header>
-	<form onsubmit={apply} class="bg-card rounded-md border p-4 sm:p-5">
+	<form onsubmit={apply} class="bg-card rounded-xl border p-4 sm:p-5">
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 			<div class="sm:col-span-2">
 				<label for="gp-search" class="mb-2 block text-sm font-medium">Search Grand Prix</label>
@@ -241,7 +241,7 @@
 		min-width: 0;
 		height: 2.25rem;
 		border: 1px solid var(--input);
-		border-radius: var(--radius);
+		border-radius: var(--radius-md);
 		background: var(--background);
 		color: var(--foreground);
 		padding: 0 0.75rem;

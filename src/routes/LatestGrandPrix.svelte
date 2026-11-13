@@ -36,7 +36,7 @@
 	);
 </script>
 
-<section class="bg-card overflow-hidden rounded-md border" aria-labelledby="latest-heading">
+<section class="bg-card overflow-hidden rounded-xl border" aria-labelledby="latest-heading">
 	<header class="flex flex-wrap items-center justify-between gap-4 border-b p-5 sm:px-6">
 		<div>
 			<div class="flex flex-wrap items-center gap-3">

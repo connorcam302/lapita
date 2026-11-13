@@ -81,7 +81,7 @@
 		<p role="status" class="text-muted-foreground mb-3 text-sm">
 			{players.length} of {directory.data.length} players
 		</p>
-		<div class="bg-card overflow-hidden rounded-md border">
+		<div class="bg-card overflow-hidden rounded-xl border">
 			<Table.Root>
 				<Table.Caption class="sr-only"
 					>Player directory, sorted by {sort}

@@ -90,7 +90,7 @@
 
 	{#if latestCompleted.data && latestCompleted.data.id !== latest?.grandPrixId}
 		<div
-			class="bg-card mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border p-5"
+			class="bg-card mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
 		>
 			<p class="font-body text-xl">Latest completed · Grand Prix {latestCompleted.data.order}</p>
 			<div class="flex flex-wrap gap-2">

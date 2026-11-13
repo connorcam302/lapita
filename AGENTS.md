@@ -449,7 +449,10 @@ and existing layouts as the starting point; a redesign should be explicitly scop
   sans, serif, and mono tokens are Inter, Source Serif 4, and JetBrains Mono.
   Fonts load through Google Fonts in `src/app.html` and `src/app.css`.
 - Base radius is `0.375rem`, spacing unit `0.25rem`, with subtle shared shadows.
-  Use existing radius, spacing, and shadow utilities to keep surfaces consistent.
+  Cards, boxed panels, table containers, and page notices use `rounded-xl`, matching
+  `Card.Root`; do not override cards with smaller corners. Inputs, buttons, and
+  compact popovers use `rounded-md`; badges and focus outlines use `rounded-sm`.
+  Keep circular markers circular and borderless tab strips square.
 - The homepage preserves the original diagonal yellow/charcoal logo banner in a compact
   `Header.svelte`, Bungee display headings, and shared podium number badges. The latest GP
   uses `src/routes/LatestGrandPrix.svelte`: a shared heading/action row, track location

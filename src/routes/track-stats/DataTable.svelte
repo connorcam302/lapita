@@ -40,7 +40,7 @@
 	});
 </script>
 
-<div class="bg-card overflow-hidden rounded-md border">
+<div class="bg-card overflow-hidden rounded-xl border">
 	<Table.Root class="min-w-[800px]">
 		<Table.Header class="bg-muted/50">
 			{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}

@@ -14,7 +14,7 @@
 	<p class="text-muted-foreground mt-2 max-w-prose text-sm">
 		Ratings for each racer’s recorded choices and track surfaces.
 	</p>
-	<div class="bg-card mt-4 overflow-x-auto rounded-md border">
+	<div class="bg-card mt-4 overflow-x-auto rounded-xl border">
 		<Table.Root>
 			<Table.Caption class="sr-only"
 				>Combined rating, sorted highest first. A rating out of 100 is not a win probability.</Table.Caption
@@ -61,7 +61,7 @@
 	</div>
 	<div class="mt-5 space-y-3">
 		{#each ratings as racer (racer.userId)}
-			<details class="bg-card rounded-md border p-4">
+			<details class="bg-card rounded-xl border p-4">
 				<summary
 					class="focus-visible:ring-ring cursor-pointer rounded-sm text-sm font-medium focus-visible:ring-2"
 					>{name(racer.userId)} · race ratings</summary

@@ -29,7 +29,7 @@
 		{:else}
 			<div>
 				{#if [convexStore.allUsers, convexStore.allTracks, convexStore.allCharacters, convexStore.allKarts].some((list) => list?.length === 0)}
-					<div class="bg-card mx-auto my-4 max-w-6xl space-y-3 rounded-md border p-4" role="status">
+					<div class="bg-card mx-auto my-4 max-w-6xl space-y-3 rounded-xl border p-4" role="status">
 						<p>
 							Some players, tracks or combinations have not been set up yet. Available history is
 							still shown.

@@ -116,7 +116,7 @@
 					<p class="text-muted-foreground mt-2 min-h-10 max-w-prose text-sm">
 						{category.description}
 					</p>
-					<div class="bg-card mt-4 overflow-x-auto rounded-md border">
+					<div class="bg-card mt-4 overflow-x-auto rounded-xl border">
 						<Table.Root>
 							<Table.Header
 								><Table.Row
